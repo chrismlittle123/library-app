@@ -1,0 +1,12 @@
+# vault-app - prototype, TypeScript and React (Vite)
+[metadata]
+tier = "prototype"
+project = "vault-app"
+
+[extends]
+registry = "github:chrismlittle123/standards@standards-v7.0.0"
+rulesets = ["typescript-react-prototype"]
+
+# conform audits the pinned react-hooks rules only against these globs.
+[code.linting.eslint]
+files = ["src/**/*.{ts,tsx}"]
