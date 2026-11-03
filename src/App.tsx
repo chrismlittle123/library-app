@@ -1,40 +1,16 @@
-import { redo, undo } from "@codemirror/commands";
-import type { EditorState, TransactionSpec } from "@codemirror/state";
-import { EditorView } from "@codemirror/view";
-import { useEffect, useRef, useState } from "react";
-import { insertLink, toggleLinePrefix, toggleWrap } from "./commands";
-import { createEditorState, setMode, type Mode } from "./editor";
-import { SAMPLES } from "./samples";
-import {
-  clearNote,
-  loadLastNote,
-  loadMode,
-  loadNote,
-  saveLastNote,
-  saveMode,
-  saveNote,
-} from "./storage";
-
-const SAVE_DELAY_MS = 400;
-
-type Status = "saved" | "saving" | "failed";
-const STATUS_LABEL: Record<Status, string> = {
-  saved: "Saved",
-  saving: "Saving…",
-  failed: "Couldn't save",
-};
-
-function sampleText(id: string): string {
-  return SAMPLES.find((sample) => sample.id === id)?.text ?? "";
-}
-
-function firstNoteId(): string {
-  const last = loadLastNote();
-  return SAMPLES.some((sample) => sample.id === last) && last ? last : SAMPLES[0].id;
-}
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { loadConfig, saveConfig } from "./config";
+import { Editor } from "./Editor";
+import { Home } from "./Home";
+import { Settings } from "./Settings";
+import { Setup } from "./Setup";
+import type { RepoConfig } from "./sync/github";
+import { openStore, type NoteStore } from "./sync/store";
+import { useSync } from "./useSync";
+import { DIARY_TEMPLATE_PATH, diaryPath, fillTemplate, noteTitle } from "./vault";
 
 /** Fit the app to the space above the keyboard, which iOS doesn't do for us. */
-function useVisualViewport(onChange: () => void) {
+function useVisualViewport() {
   useEffect(() => {
     const viewport = window.visualViewport;
     if (!viewport) return;
@@ -43,7 +19,6 @@ function useVisualViewport(onChange: () => void) {
       root.style.setProperty("--app-height", `${viewport.height}px`);
       root.style.setProperty("--app-top", `${viewport.offsetTop}px`);
       root.classList.toggle("keyboard-open", window.innerHeight - viewport.height > 120);
-      onChange();
     };
     sync();
     viewport.addEventListener("resize", sync);
@@ -52,150 +27,143 @@ function useVisualViewport(onChange: () => void) {
       viewport.removeEventListener("resize", sync);
       viewport.removeEventListener("scroll", sync);
     };
-  }, [onChange]);
+  }, []);
 }
 
 export function App() {
-  const host = useRef<HTMLDivElement>(null);
-  const view = useRef<EditorView | null>(null);
-  const saveTimer = useRef<number>();
-  const pending = useRef<(() => void) | null>(null);
-  const [noteId, setNoteId] = useState(firstNoteId);
-  const [mode, setModeState] = useState<Mode>(loadMode);
-  const [status, setStatus] = useState<Status>("saved");
-  const modeRef = useRef(mode);
+  useVisualViewport();
+  const [config, setConfig] = useState(loadConfig);
+  const store = useMemo(() => config && openStore(config.owner, config.repo), [config]);
 
-  // Saves whatever is waiting, for when the note changes or the app is hidden.
-  const flush = useRef(() => {
-    window.clearTimeout(saveTimer.current);
-    pending.current?.();
-    pending.current = null;
-  });
+  let content;
+  if (config && store) {
+    content = (
+      <Connected
+        key={`${config.owner}/${config.repo}`}
+        config={config}
+        store={store}
+        onDisconnect={() => {
+          void store.erase();
+          saveConfig(null);
+          setConfig(null);
+        }}
+      />
+    );
+  } else {
+    content = (
+      <Setup
+        onConnected={(next) => {
+          saveConfig(next);
+          setConfig(next);
+        }}
+      />
+    );
+  }
+  return <div className="app">{content}</div>;
+}
 
-  const keepCursorVisible = useRef(() => {
-    const editor = view.current;
-    if (editor?.hasFocus) {
-      editor.dispatch({ effects: EditorView.scrollIntoView(editor.state.selection.main.head) });
-    }
-  });
-  useVisualViewport(keepCursorVisible.current);
+type Screen =
+  | { name: "home" }
+  | { name: "settings" }
+  /** `draft` is the starting text of a note that doesn't exist until it's edited. */
+  | { name: "note"; path: string; draft?: string };
 
-  useEffect(() => {
-    const editor = new EditorView({ parent: host.current! });
-    view.current = editor;
-    const save = flush.current;
-    const onHide = () => {
-      if (document.visibilityState === "hidden") save();
-    };
-    document.addEventListener("visibilitychange", onHide);
-    window.addEventListener("pagehide", save);
-    return () => {
-      document.removeEventListener("visibilitychange", onHide);
-      window.removeEventListener("pagehide", save);
-      save();
-      editor.destroy();
-      view.current = null;
-    };
-  }, []);
+function Connected({
+  config,
+  store,
+  onDisconnect,
+}: {
+  config: RepoConfig;
+  store: NoteStore;
+  onDisconnect: () => void;
+}) {
+  const { notes, loaded, status, edit, syncNow, conflicts, clearConflicts } = useSync(config, store);
+  const [screen, setScreen] = useState<Screen>({ name: "home" });
+  const [folder, setFolder] = useState("");
+  // Kept here so going back from a search result returns to the results.
+  const [query, setQuery] = useState("");
 
-  useEffect(() => {
-    flush.current();
-    saveLastNote(noteId);
-    const onChange = (text: string) => {
-      setStatus("saving");
-      pending.current = () => setStatus(saveNote(noteId, text) ? "saved" : "failed");
-      window.clearTimeout(saveTimer.current);
-      saveTimer.current = window.setTimeout(flush.current, SAVE_DELAY_MS);
-    };
-    const text = loadNote(noteId) ?? sampleText(noteId);
-    view.current?.setState(createEditorState(text, modeRef.current, onChange));
-    view.current?.scrollDOM.scrollTo(0, 0);
-    setStatus("saved");
-  }, [noteId]);
+  const goHome = useCallback(() => {
+    setScreen({ name: "home" });
+    // Leaving a note is a natural moment to push it, without waiting.
+    window.setTimeout(() => void syncNow(), 300);
+  }, [syncNow]);
 
-  const run = (spec: (state: EditorState) => TransactionSpec) => () => {
-    const editor = view.current;
-    if (!editor) return;
-    editor.dispatch(editor.state.update(spec(editor.state), { scrollIntoView: true }));
-    editor.focus();
+  const openDraft = (path: string, draft: string) => {
+    if (notes.some((note) => note.path === path)) setScreen({ name: "note", path });
+    else setScreen({ name: "note", path, draft });
   };
 
-  const toggleMode = () => {
-    const next: Mode = mode === "styled" ? "hidden" : "styled";
-    modeRef.current = next;
-    setModeState(next);
-    saveMode(next);
-    if (view.current) setMode(view.current, next);
+  const openToday = () => {
+    const today = new Date();
+    const template = notes.find((note) => note.path === DIARY_TEMPLATE_PATH)?.text ?? "";
+    openDraft(diaryPath(today), fillTemplate(template, today));
   };
 
-  const resetNote = () => {
-    window.clearTimeout(saveTimer.current);
-    pending.current = null;
-    clearNote(noteId);
-    view.current?.dispatch({
-      changes: {
-        from: 0,
-        to: view.current.state.doc.length,
-        insert: sampleText(noteId),
-      },
-    });
-  };
+  const notePath = screen.name === "note" ? screen.path : null;
+  const save = useCallback((text: string) => edit(notePath!, text), [edit, notePath]);
+  const readStored = useCallback(() => store.get(notePath!), [store, notePath]);
 
-  const tools: { label: string; name: string; action: () => void }[] = [
-    { label: "H", name: "Heading", action: run((s) => toggleLinePrefix(s, "## ")) },
-    { label: "B", name: "Bold", action: run((s) => toggleWrap(s, "**")) },
-    { label: "I", name: "Italic", action: run((s) => toggleWrap(s, "*")) },
-    { label: "•", name: "List", action: run((s) => toggleLinePrefix(s, "- ")) },
-    { label: "☐", name: "Checkbox", action: run((s) => toggleLinePrefix(s, "- [ ] ")) },
-    { label: "[[", name: "Link", action: run(insertLink) },
-    { label: "↶", name: "Undo", action: () => view.current && undo(view.current) },
-    { label: "↷", name: "Redo", action: () => view.current && redo(view.current) },
-    { label: "⌄", name: "Hide keyboard", action: () => view.current?.contentDOM.blur() },
-  ];
+  if (!loaded) return null;
+
+  const notice = conflicts.length > 0 && (
+    <div className="notice" role="alert">
+      <p>
+        {conflicts.map((c) => noteTitle(c.path)).join(", ")} also changed elsewhere. Both versions are
+        kept, and your phone's is listed on the home screen.
+      </p>
+      <button type="button" className="tool" aria-label="Dismiss" onClick={clearConflicts}>
+        ×
+      </button>
+    </div>
+  );
+
+  if (screen.name === "settings") {
+    return (
+      <Settings
+        config={config}
+        unsynced={notes.filter((note) => note.dirty).length}
+        onBack={() => setScreen({ name: "home" })}
+        onDisconnect={onDisconnect}
+      />
+    );
+  }
+
+  if (screen.name === "note") {
+    const record = notes.find((note) => note.path === screen.path);
+    return (
+      <>
+        {notice}
+        <Editor
+          key={screen.path}
+          path={screen.path}
+          text={record?.text ?? screen.draft ?? ""}
+          record={record}
+          readStored={readStored}
+          onSave={save}
+          onBack={goHome}
+          autoFocus={!record}
+        />
+      </>
+    );
+  }
 
   return (
-    <div className="app">
-      <header className="bar">
-        <select
-          aria-label="Note"
-          value={noteId}
-          onChange={(event) => setNoteId(event.target.value)}
-        >
-          {SAMPLES.map((sample) => (
-            <option key={sample.id} value={sample.id}>
-              {sample.title}
-            </option>
-          ))}
-        </select>
-        <span className="status" role="status" data-status={status}>
-          {STATUS_LABEL[status]}
-        </span>
-        <button type="button" className="tool" aria-pressed={mode === "hidden"} onClick={toggleMode}>
-          <span aria-hidden="true">Aa</span>
-          <span className="sr-only">Hide markdown symbols</span>
-        </button>
-      </header>
-      <main className="editor" ref={host} />
-      <nav className="toolbar" aria-label="Formatting">
-        {tools.map((tool) => (
-          <button
-            key={tool.name}
-            type="button"
-            className="tool"
-            aria-label={tool.name}
-            // Stops the tap taking focus from the editor and closing the keyboard.
-            onPointerDown={(event) => event.preventDefault()}
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={tool.action}
-          >
-            {tool.label}
-          </button>
-        ))}
-        <button type="button" className="tool reset" onClick={resetNote}>
-          Reset
-        </button>
-        <span className="build">{__BUILD__}</span>
-      </nav>
-    </div>
+    <>
+      {notice}
+      <Home
+        notes={notes}
+        status={status}
+        folder={folder}
+        onFolder={setFolder}
+        query={query}
+        onQuery={setQuery}
+        onOpen={(path) => setScreen({ name: "note", path })}
+        onToday={openToday}
+        onCreate={(path) => openDraft(path, `# ${noteTitle(path)}\n\n`)}
+        onSync={() => void syncNow()}
+        onSettings={() => setScreen({ name: "settings" })}
+      />
+    </>
   );
 }
