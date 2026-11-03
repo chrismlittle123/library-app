@@ -82,7 +82,12 @@ export function setMode(view: EditorView, mode: Mode) {
   view.dispatch({ effects: modeCompartment.reconfigure(modeExtension(mode)) });
 }
 
-export function createEditorState(text: string, mode: Mode, onChange: (text: string) => void) {
+export function createEditorState(
+  text: string,
+  mode: Mode,
+  readOnly: boolean,
+  onChange: (text: string) => void,
+) {
   return EditorState.create({
     doc: text,
     extensions: [
@@ -92,6 +97,8 @@ export function createEditorState(text: string, mode: Mode, onChange: (text: str
       markdown({ base: markdownLanguage }),
       syntaxHighlighting(highlight),
       modeCompartment.of(modeExtension(mode)),
+      EditorState.readOnly.of(readOnly),
+      EditorView.editable.of(!readOnly),
       EditorView.lineWrapping,
       // CodeMirror turns these off by default, but a diary wants them on.
       EditorView.contentAttributes.of({

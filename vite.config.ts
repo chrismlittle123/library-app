@@ -2,6 +2,18 @@ import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 
+const CSP = [
+  "default-src 'none'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data:",
+  "connect-src 'self' https://api.github.com",
+  "manifest-src 'self'",
+  "worker-src 'self'",
+  "base-uri 'none'",
+  "form-action 'none'",
+].join("; ");
+
 // base: "./" keeps the bundle path-relative, for GitHub Pages subpaths and the
 // iOS home screen.
 export default defineConfig({
@@ -11,6 +23,19 @@ export default defineConfig({
   },
   plugins: [
     react(),
+    {
+      // Build only, because the dev server relies on inline scripts. The GitHub key
+      // lives in this page, so it may only ever talk to itself and GitHub.
+      name: "content-security-policy",
+      apply: "build",
+      transformIndexHtml: () => [
+        {
+          tag: "meta",
+          attrs: { "http-equiv": "Content-Security-Policy", content: CSP },
+          injectTo: "head-prepend",
+        },
+      ],
+    },
     VitePWA({
       registerType: "autoUpdate",
       includeAssets: ["apple-touch-icon.png"],
