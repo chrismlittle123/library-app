@@ -20,6 +20,7 @@ npm test           # unit tests, including the sync engine
 # (first: npx playwright install webkit)
 LIBRARY_TEST_TOKEN=$(gh auth token) npm run test:e2e
 npm run lint
+npm run phone      # the app in Chrome at iPhone size
 npm run build
 ```
 
