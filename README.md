@@ -4,7 +4,7 @@ A phone editor for a git-backed markdown library, installed from Safari as a hom
 
 It keeps a copy of your notes on the phone and syncs them straight to GitHub, so the phone and laptop both just use git. Every edit is saved on the phone first and pushed afterwards. Nothing dirty is ever overwritten: if a note changed on both sides, the phone's version is kept as a separate `(phone conflict …)` file.
 
-The Flashcards tab tests you on the cards in `knowledge/flashcards/flashcards.json`, on a monthly spaced-repetition schedule. Cards come from your notes through GitHub, so they're never in this repo. Grades go to the `life-admin` server, which is where Sumi reads them and the schedule is rebuilt from.
+The Flashcards tab tests you on the cards in `knowledge/flashcards/flashcards.json`, on a monthly spaced-repetition schedule. Cards come from your notes through GitHub, so they're never in this repo. Grades go to the `life-admin` server, which is where Sumi reads them and the schedule is rebuilt from. That server's key is in `knowledge/flashcards/server-key.txt` in the private notes repo, because this page is public and must never have a secret built into it.
 
 Files with `do not edit` in their header are generated, so they open read-only. The app has no delete or rename, on purpose.
 

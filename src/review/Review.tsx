@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { createGitHub, type RepoConfig } from "../sync/github";
-import { hasBackend, publishSession } from "./api";
+import { publishSession } from "./api";
 import { parseMarkdown, type Line } from "./markdown";
 import { isFirstAnswer, progressLabel, requeue, uniqueCards } from "./session";
 import { grade, isDue, newState, yearMonth } from "./sr";
 import { loadDeck, loadStates, removePending, saveDeck, saveStates, upsertPending } from "./storage";
-import { DECK_PATH, syncReview } from "./sync";
+import { syncReview } from "./sync";
 import type { Card, CardState, Grade, Rating, SessionRecord } from "./types";
 
 type Phase = "start" | "review" | "done";
@@ -40,7 +40,7 @@ export function Review({ config, tabs }: { config: RepoConfig; tabs: ReactNode }
   // that the server's answer would then overwrite.
   useEffect(() => {
     let live = true;
-    void syncReview(() => createGitHub(config).readFile(DECK_PATH)).then((r) => {
+    void syncReview((path) => createGitHub(config).readFile(path)).then((r) => {
       if (!live) return;
       if (r.deck) {
         saveDeck(r.deck);
@@ -230,9 +230,7 @@ export function Review({ config, tabs }: { config: RepoConfig; tabs: ReactNode }
 function syncMessage(synced: boolean | null): string {
   if (synced === null) return "Saving…";
   if (synced) return "Saved and logged for Sumi";
-  return hasBackend
-    ? "Saved on this phone. It'll upload next time you open Flashcards."
-    : "Saved on this phone only.";
+  return "Saved on this phone. It'll upload next time you open Flashcards.";
 }
 
 function Spans({ line }: { line: Line }) {
