@@ -2,14 +2,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { GradedSession, SessionRecord } from "./types";
 
 const api = vi.hoisted(() => ({
-  hasBackend: true,
   fetchProgress: vi.fn(),
   publishSession: vi.fn(),
 }));
 vi.mock("./api", () => api);
 
-import { parseDeck, syncReview } from "./sync";
-import { clearCache, loadDeck, loadPending, saveDeck, upsertPending } from "./storage";
+import { DECK_PATH, parseDeck, syncReview } from "./sync";
+import { clearCache, loadDeck, loadPending, loadServerKey, saveDeck, saveServerKey, upsertPending } from "./storage";
 
 function fakeStorage(): Storage {
   const m = new Map<string, string>();
@@ -27,7 +26,7 @@ function fakeStorage(): Storage {
 
 const CARD = { id: "a", question: "q", answer: "x", topic: "t" };
 const DECK = JSON.stringify([{ ...CARD, memorise: true }]);
-const readDeck = () => Promise.resolve(DECK);
+const readFile = (path: string) => Promise.resolve(path === DECK_PATH ? DECK : "the-key\n");
 
 function session(id: string, ts: string, rating: "good" | "again" = "good"): SessionRecord {
   return {
@@ -46,7 +45,6 @@ const onServer = (s: SessionRecord): GradedSession => ({ session_id: s.session_i
 
 beforeEach(() => {
   vi.stubGlobal("localStorage", fakeStorage());
-  api.hasBackend = true;
   api.fetchProgress.mockReset().mockResolvedValue([]);
   api.publishSession.mockReset().mockResolvedValue(true);
 });
@@ -70,7 +68,7 @@ describe("parseDeck", () => {
 describe("syncReview", () => {
   it("rebuilds state from the server's sessions on a fresh phone", async () => {
     api.fetchProgress.mockResolvedValue([onServer(session("s1", "2026-08-03T21:00:00Z"))]);
-    const r = await syncReview(readDeck);
+    const r = await syncReview(readFile);
     expect(r.online).toBe(true);
     expect(r.deck).toEqual([CARD]);
     expect(r.states?.["a"].due).toBe("2026-09");
@@ -78,7 +76,7 @@ describe("syncReview", () => {
 
   it("uploads a queued session and clears it once accepted", async () => {
     upsertPending(session("s1", "2026-08-03T21:00:00Z"));
-    await syncReview(readDeck);
+    await syncReview(readFile);
     expect(api.publishSession).toHaveBeenCalledTimes(1);
     expect(loadPending()).toEqual([]);
   });
@@ -87,7 +85,7 @@ describe("syncReview", () => {
     api.publishSession.mockResolvedValue(false);
     upsertPending(session("s2", "2026-09-02T20:00:00Z", "again"));
     api.fetchProgress.mockResolvedValue([onServer(session("s1", "2026-08-03T21:00:00Z"))]);
-    const r = await syncReview(readDeck);
+    const r = await syncReview(readFile);
     expect(loadPending()).toHaveLength(1);
     expect(r.states?.["a"].lapses).toBe(1);
   });
@@ -97,7 +95,7 @@ describe("syncReview", () => {
     const s1 = session("s1", "2026-08-03T21:00:00Z");
     upsertPending(s1);
     api.fetchProgress.mockResolvedValue([onServer(s1)]);
-    const r = await syncReview(readDeck);
+    const r = await syncReview(readFile);
     expect(r.states?.["a"].reps).toBe(1);
   });
 
@@ -109,7 +107,7 @@ describe("syncReview", () => {
 
   it("still gets the cards when only the server is down", async () => {
     api.fetchProgress.mockResolvedValue(null);
-    const r = await syncReview(readDeck);
+    const r = await syncReview(readFile);
     expect(r).toEqual({ deck: [CARD], states: null, online: false });
   });
 
@@ -119,16 +117,20 @@ describe("syncReview", () => {
     api.fetchProgress.mockImplementation(() =>
       Promise.resolve(api.publishSession.mock.calls.map((c) => onServer(c[0] as SessionRecord))),
     );
-    const r = await syncReview(readDeck);
+    const r = await syncReview(readFile);
     expect(api.publishSession).toHaveBeenCalledTimes(1);
     expect(r.states?.["a"].lapses).toBe(1);
   });
 
-  it("doesn't try to upload in a build with no backend", async () => {
-    api.hasBackend = false;
-    upsertPending(session("s1", "2026-08-03T21:00:00Z"));
-    await syncReview(readDeck);
-    expect(api.publishSession).not.toHaveBeenCalled();
+  it("saves the server's key from the notes repo", async () => {
+    await syncReview(readFile);
+    expect(loadServerKey()).toBe("the-key");
+  });
+
+  it("keeps the saved key when the notes repo can't be reached", async () => {
+    saveServerKey("saved");
+    await syncReview(() => Promise.reject(new Error("offline")));
+    expect(loadServerKey()).toBe("saved");
   });
 });
 
@@ -145,11 +147,13 @@ describe("upsertPending", () => {
 });
 
 describe("clearCache", () => {
-  it("removes the cards but keeps grades not yet uploaded", () => {
+  it("removes the cards and key but keeps grades not yet uploaded", () => {
     saveDeck([CARD]);
+    saveServerKey("the-key");
     upsertPending(session("s1", "2026-08-03T21:00:00Z"));
     clearCache();
     expect(loadDeck()).toBeNull();
+    expect(loadServerKey()).toBeNull();
     expect(loadPending()).toHaveLength(1);
   });
 });

@@ -1,10 +1,12 @@
-import { fetchProgress, hasBackend, publishSession } from "./api";
+import { fetchProgress, publishSession } from "./api";
 import { replay } from "./sr";
-import { loadPending, removePending } from "./storage";
+import { loadPending, removePending, saveServerKey } from "./storage";
 import type { Card, CardState } from "./types";
 
 /** Where the cards are written, relative to the notes folder. */
 export const DECK_PATH = "knowledge/flashcards/flashcards.json";
+/** The review server's key, kept in the private repo because this page is public. */
+export const KEY_PATH = "knowledge/flashcards/server-key.txt";
 
 export interface SyncResult {
   deck: Card[] | null; // null: keep the cached deck
@@ -30,18 +32,22 @@ export function parseDeck(text: string): Card[] | null {
 /**
  * Bring this phone up to date, run each time Flashcards opens.
  *
- * 1. Re-send any session finished while offline. A retry of one that did land
+ * 1. Fetch the server's key from the notes repo, so changing it there is enough.
+ * 2. Re-send any session finished while offline. A retry of one that did land
  *    is harmless: the server keeps the first copy of each session_id.
- * 2. Read the cards from the notes repo, and every graded session from the server.
- * 3. Replay the server's sessions plus anything still queued, so a review done
+ * 3. Read the cards from the notes repo, and every graded session from the server.
+ * 4. Replay the server's sessions plus anything still queued, so a review done
  *    offline still counts on this phone before it reaches the server.
  */
-export async function syncReview(readDeck: () => Promise<string | null>): Promise<SyncResult> {
-  for (const rec of hasBackend ? loadPending() : []) {
+export async function syncReview(readFile: (path: string) => Promise<string | null>): Promise<SyncResult> {
+  const key = await readFile(KEY_PATH).catch(() => null);
+  if (key?.trim()) saveServerKey(key.trim());
+
+  for (const rec of loadPending()) {
     if (await publishSession(rec)) removePending(rec.session_id);
   }
 
-  const [text, sessions] = await Promise.all([readDeck().catch(() => null), fetchProgress()]);
+  const [text, sessions] = await Promise.all([readFile(DECK_PATH).catch(() => null), fetchProgress()]);
   const deck = text === null ? null : parseDeck(text);
   let states: Record<string, CardState> | null = null;
   if (sessions) {

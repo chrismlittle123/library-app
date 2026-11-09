@@ -30,6 +30,7 @@ test.beforeEach(async ({ page }) => {
   github = new FakeGitHub({
     "vault/inbox/idea.md": "# Idea\n",
     "vault/knowledge/flashcards/flashcards.json": DECK,
+    "vault/knowledge/flashcards/server-key.txt": "e2e-secret\n",
   });
   await github.install(page);
   serverUp = true;
@@ -123,4 +124,5 @@ test("disconnecting removes the cards from the phone", async ({ page }) => {
   await button(page, "Disconnect").click();
   await expect(page.getByLabel("GitHub key")).toBeVisible();
   expect(await page.evaluate(() => localStorage.getItem("flashcards.deck.v1"))).toBeNull();
+  expect(await page.evaluate(() => localStorage.getItem("flashcards.serverKey.v1"))).toBeNull();
 });

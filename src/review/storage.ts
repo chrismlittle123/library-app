@@ -7,6 +7,7 @@ import type { Card, CardState, SessionRecord } from "./types";
 const STATES_KEY = "flashcards.states.v1";
 const DECK_KEY = "flashcards.deck.v1";
 const PENDING_KEY = "flashcards.pending.v1";
+const SERVER_KEY = "flashcards.serverKey.v1";
 
 function read<T>(key: string, fallback: T): T {
   try {
@@ -41,11 +42,20 @@ export function saveDeck(cards: Card[]): void {
   write(DECK_KEY, cards);
 }
 
-/** Forget the cards. Grades not yet uploaded stay, because nothing else holds them. */
+export function loadServerKey(): string | null {
+  return read<string | null>(SERVER_KEY, null);
+}
+
+export function saveServerKey(key: string): void {
+  write(SERVER_KEY, key);
+}
+
+/** Forget the cards and the server key. Grades not yet uploaded stay, because nothing else holds them. */
 export function clearCache(): void {
   try {
     localStorage.removeItem(DECK_KEY);
     localStorage.removeItem(STATES_KEY);
+    localStorage.removeItem(SERVER_KEY);
   } catch {
     // Blocked storage has nothing to clear.
   }

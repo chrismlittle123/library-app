@@ -14,7 +14,6 @@ export default defineConfig({
     command: "npm run build && npm run preview -- --port 5175 --strictPort",
     url: "http://localhost:5175",
     reuseExistingServer: false,
-    env: { VITE_API_SECRET: "e2e-secret" },
   },
   projects: [{ name: "iPhone 14", use: { ...devices["iPhone 14"] } }],
 });
