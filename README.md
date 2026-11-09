@@ -1,6 +1,6 @@
-# Vault
+# Library
 
-A phone editor for a git-backed markdown vault, installed from Safari as a home screen app.
+A phone editor for a git-backed markdown library, installed from Safari as a home screen app.
 
 It keeps a copy of your notes on the phone and syncs them straight to GitHub, so the phone and laptop both just use git. Every edit is saved on the phone first and pushed afterwards. Nothing dirty is ever overwritten: if a note changed on both sides, the phone's version is kept as a separate `(phone conflict …)` file.
 
@@ -16,7 +16,7 @@ npm run dev        # http://localhost:5173
 npm test           # unit tests, including the sync engine
 # Full flow in WebKit, against the real API and the private throwaway repo:
 # (first: npx playwright install webkit)
-VAULT_TEST_TOKEN=$(gh auth token) npm run test:e2e
+LIBRARY_TEST_TOKEN=$(gh auth token) npm run test:e2e
 npm run lint
 npm run build
 ```

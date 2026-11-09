@@ -3,7 +3,7 @@ import { defineConfig, devices } from "@playwright/test";
 // These run against the real GitHub API and the private throwaway repo, using the
 // production build. WebKit is the closest engine to iOS Safari, but has no
 // on-screen keyboard, so keyboard behaviour still needs a real iPhone.
-//   VAULT_TEST_TOKEN=$(gh auth token) npm run test:e2e
+//   LIBRARY_TEST_TOKEN=$(gh auth token) npm run test:e2e
 export default defineConfig({
   testDir: "./e2e",
   reporter: [["list"]],

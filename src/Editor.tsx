@@ -1,12 +1,13 @@
 import { redo, undo } from "@codemirror/commands";
-import type { EditorState, TransactionSpec } from "@codemirror/state";
+import { type EditorState, Transaction, type TransactionSpec } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { useEffect, useRef, useState } from "react";
+import { SaveQueue } from "./saveQueue";
 import { insertLink, toggleLinePrefix, toggleWrap } from "./commands";
 import { loadMode, saveMode } from "./config";
 import { createEditorState, setMode, type Mode } from "./editorState";
 import type { NoteRecord } from "./sync/store";
-import { isGenerated, noteTitle } from "./vault";
+import { isGenerated, noteTitle } from "./library";
 
 const SAVE_DELAY_MS = 250;
 
@@ -17,7 +18,7 @@ interface Props {
   record: NoteRecord | undefined;
   /** Reads the stored note, because `record` can lag behind what's on disk. */
   readStored: () => Promise<NoteRecord | undefined>;
-  onSave: (text: string) => Promise<void>;
+  onSave: (text: string, editedFrom: string) => Promise<void>;
   onBack: () => void;
   autoFocus: boolean;
 }
@@ -31,36 +32,41 @@ export function Editor({ path, text, record, readStored, onSave, onBack, autoFoc
   const [readOnly] = useState(() => isGenerated(text));
 
   const timer = useRef<number>();
-  const unsaved = useRef<string | null>(null);
-  const inFlight = useRef(0);
   const applyingRemote = useRef(false);
+  // What this editor believes is stored, so a save can tell if it changed underneath.
+  const storedText = useRef(text);
   const latestSave = useRef(onSave);
   latestSave.current = onSave;
 
+  const [queue] = useState(
+    () =>
+      new SaveQueue(
+        async (next) => {
+          const editedFrom = storedText.current;
+          storedText.current = next;
+          try {
+            await latestSave.current(next, editedFrom);
+          } catch (error) {
+            storedText.current = editedFrom;
+            throw error;
+          }
+        },
+        (failed) => {
+          setSaveFailed(failed);
+          if (!queue.busy) setSaving(false);
+        },
+      ),
+  );
+
   const flush = useRef(() => {
     window.clearTimeout(timer.current);
-    const pending = unsaved.current;
-    if (pending === null) return;
-    unsaved.current = null;
-    inFlight.current += 1;
-    latestSave
-      .current(pending)
-      .then(() => setSaveFailed(false))
-      .catch(() => {
-        // Try again on the next flush rather than dropping the text.
-        unsaved.current ??= pending;
-        setSaveFailed(true);
-      })
-      .finally(() => {
-        inFlight.current -= 1;
-        if (inFlight.current === 0 && unsaved.current === null) setSaving(false);
-      });
+    return queue.flush();
   });
 
   useEffect(() => {
     const onChange = (next: string) => {
       if (applyingRemote.current) return;
-      unsaved.current = next;
+      queue.change(next);
       setSaving(true);
       window.clearTimeout(timer.current);
       timer.current = window.setTimeout(flush.current, SAVE_DELAY_MS);
@@ -70,9 +76,13 @@ export function Editor({ path, text, record, readStored, onSave, onBack, autoFoc
       state: createEditorState(text, loadMode(), readOnly, onChange),
     });
     view.current = editor;
-    if (autoFocus && !readOnly) editor.focus();
+    if (autoFocus && !readOnly) {
+      // A new note opens with its template, and writing carries on below that.
+      editor.dispatch({ selection: { anchor: editor.state.doc.length } });
+      editor.focus();
+    }
 
-    const save = flush.current;
+    const save = () => void flush.current();
     const onHide = () => {
       if (document.visibilityState === "hidden") save();
     };
@@ -105,20 +115,23 @@ export function Editor({ path, text, record, readStored, onSave, onBack, autoFoc
     void readStored().then((stored) => {
       const editor = view.current;
       if (!live || !editor || !stored || stored.dirty) return;
-      if (unsaved.current !== null || inFlight.current > 0) return;
+      if (queue.busy) return;
+      storedText.current = stored.text;
       if (stored.text === editor.state.doc.toString()) return;
       applyingRemote.current = true;
       const head = Math.min(editor.state.selection.main.head, stored.text.length);
       editor.dispatch({
         changes: { from: 0, to: editor.state.doc.length, insert: stored.text },
         selection: { anchor: head },
+        // Otherwise undo would take back the change, and push that over GitHub.
+        annotations: Transaction.addToHistory.of(false),
       });
       applyingRemote.current = false;
     });
     return () => {
       live = false;
     };
-  }, [remoteText, readStored]);
+  }, [remoteText, readStored, queue]);
 
   const run = (spec: (state: EditorState) => TransactionSpec) => () => {
     const editor = view.current;
@@ -167,8 +180,10 @@ export function Editor({ path, text, record, readStored, onSave, onBack, autoFoc
           className="tool"
           aria-label="Back"
           onClick={() => {
-            flush.current();
-            onBack();
+            void flush.current().then(() => {
+              // If it couldn't be saved, leaving now would lose the text.
+              if (!queue.hasUnsaved) onBack();
+            });
           }}
         >
           ‹

@@ -3,6 +3,11 @@ import { conflictCopyPath, syncNotes } from "./engine";
 import { GitHubError, type FileChange, type GitHubApi, type RemoteTree, isNotePath } from "./github";
 import { saveEdit, type NoteRecord, type NoteStore } from "./store";
 
+/** An edit made from whatever is stored right now, as the editor normally does. */
+async function edit(store: NoteStore, path: string, text: string) {
+  await saveEdit(store, path, text, (await store.get(path))?.text ?? "");
+}
+
 class MemoryStore implements NoteStore {
   notes = new Map<string, NoteRecord>();
   async all() {
@@ -96,7 +101,7 @@ describe("syncNotes", () => {
 
   it("pushes a phone edit and marks it clean", async () => {
     const { github, store } = await setup({ "a.md": "one" });
-    await saveEdit(store, "a.md", "one edited");
+    await edit(store, "a.md", "one edited");
     const result = await syncNotes(github, store, undefined, NOW);
     expect(result.pushed).toBe(1);
     expect(github.files.get("a.md")).toBe("one edited");
@@ -108,7 +113,7 @@ describe("syncNotes", () => {
 
   it("pushes a new note made on the phone", async () => {
     const { github, store } = await setup();
-    await saveEdit(store, "diary/today.md", "hello");
+    await edit(store, "diary/today.md", "hello");
     await syncNotes(github, store, undefined, NOW);
     expect(github.files.get("diary/today.md")).toBe("hello");
   });
@@ -130,7 +135,7 @@ describe("syncNotes", () => {
   it("puts back a note edited on the phone but deleted on the Mac", async () => {
     const { github, store } = await setup({ "a.md": "one" });
     github.remove("a.md");
-    await saveEdit(store, "a.md", "still writing");
+    await edit(store, "a.md", "still writing");
     await syncNotes(github, store, undefined, NOW);
     expect(github.files.get("a.md")).toBe("still writing");
     expect(store.notes.get("a.md")?.dirty).toBe(false);
@@ -139,7 +144,7 @@ describe("syncNotes", () => {
   it("keeps both versions when both sides changed", async () => {
     const { github, store } = await setup({ "dir/a.md": "one" });
     await github.set("dir/a.md", "from mac");
-    await saveEdit(store, "dir/a.md", "from phone");
+    await edit(store, "dir/a.md", "from phone");
     const result = await syncNotes(github, store, undefined, NOW);
     const copy = "dir/a (phone conflict 2026-11-03 1405).md";
     expect(result.conflicts).toEqual([{ path: "dir/a.md", copy }]);
@@ -152,7 +157,7 @@ describe("syncNotes", () => {
   it("keeps both when the same new note appears on both sides", async () => {
     const { github, store } = await setup();
     await github.set("today.md", "mac entry");
-    await saveEdit(store, "today.md", "phone entry");
+    await edit(store, "today.md", "phone entry");
     const result = await syncNotes(github, store, undefined, NOW);
     expect(result.conflicts).toHaveLength(1);
     expect(github.files.get("today.md")).toBe("mac entry");
@@ -162,7 +167,7 @@ describe("syncNotes", () => {
   it("marks clean without a conflict when both sides made the same change", async () => {
     const { github, store } = await setup({ "a.md": "one" });
     await github.set("a.md", "same");
-    await saveEdit(store, "a.md", "same");
+    await edit(store, "a.md", "same");
     const result = await syncNotes(github, store, undefined, NOW);
     expect(result).toEqual({ downloaded: 0, pushed: 0, conflicts: [] });
     expect(store.notes.get("a.md")?.dirty).toBe(false);
@@ -170,7 +175,7 @@ describe("syncNotes", () => {
 
   it("restarts when the Mac pushes during the phone's push", async () => {
     const { github, store } = await setup({ "a.md": "one", "b.md": "two" });
-    await saveEdit(store, "a.md", "phone");
+    await edit(store, "a.md", "phone");
     github.beforeCommit = () => {
       github.files.set("b.md", "mac");
       github.headId += 1;
@@ -183,7 +188,7 @@ describe("syncNotes", () => {
 
   it("gives up with an error, keeping edits, if the branch never settles", async () => {
     const { github, store } = await setup({ "a.md": "one" });
-    await saveEdit(store, "a.md", "phone");
+    await edit(store, "a.md", "phone");
     github.commit = async () => {
       throw new GitHubError("stale", "moved");
     };
@@ -193,7 +198,7 @@ describe("syncNotes", () => {
 
   it("keeps an edit typed while its push was in flight", async () => {
     const { github, store } = await setup({ "a.md": "one" });
-    await saveEdit(store, "a.md", "first");
+    await edit(store, "a.md", "first");
     github.afterPush = () => {
       const current = store.notes.get("a.md")!;
       store.notes.set("a.md", { ...current, text: "first and more", rev: current.rev + 1 });
@@ -214,7 +219,7 @@ describe("syncNotes", () => {
     github.getText = async (sha) => {
       const text = await getText(sha);
       github.getText = getText;
-      await saveEdit(store, "a.md", "typed meanwhile");
+      await edit(store, "a.md", "typed meanwhile");
       return text;
     };
     await syncNotes(github, store, undefined, NOW);
@@ -223,9 +228,22 @@ describe("syncNotes", () => {
     expect(github.files.get(copy)).toBe("typed meanwhile");
   });
 
+  it("keeps both when an edit was made from text that has since been replaced", async () => {
+    const { github, store } = await setup({ "a.md": "one" });
+    await github.set("a.md", "from the Mac");
+    await syncNotes(github, store, undefined, NOW);
+    // The editor hadn't picked up the Mac's change when this was typed.
+    await saveEdit(store, "a.md", "one and more", "one");
+    const result = await syncNotes(github, store, undefined, NOW);
+    expect(github.files.get("a.md")).toBe("from the Mac");
+    expect(result.conflicts).toHaveLength(1);
+    expect(github.files.get(result.conflicts[0].copy)).toBe("one and more");
+    expect(store.notes.get("a.md")).toMatchObject({ text: "from the Mac", dirty: false });
+  });
+
   it("recovers when a push worked but the reply was lost", async () => {
     const { github, store } = await setup({ "a.md": "one" });
-    await saveEdit(store, "a.md", "phone");
+    await edit(store, "a.md", "phone");
     await github.set("a.md", "phone");
     const result = await syncNotes(github, store, undefined, NOW);
     expect(result.pushed).toBe(0);
@@ -235,7 +253,7 @@ describe("syncNotes", () => {
 
   it("keeps edits and earlier downloads when the network drops", async () => {
     const { github, store } = await setup({ "a.md": "one" });
-    await saveEdit(store, "a.md", "phone");
+    await edit(store, "a.md", "phone");
     await github.set("b.md", "new on mac");
     github.failDownload = true;
     await expect(syncNotes(github, store, undefined, NOW)).rejects.toMatchObject({ kind: "network" });
@@ -248,8 +266,8 @@ describe("syncNotes", () => {
 
   it("makes one commit for several edits", async () => {
     const { github, store } = await setup({ "a.md": "one", "b.md": "two" });
-    await saveEdit(store, "a.md", "x");
-    await saveEdit(store, "b.md", "y");
+    await edit(store, "a.md", "x");
+    await edit(store, "b.md", "y");
     await syncNotes(github, store, undefined, NOW);
     expect(github.commits).toHaveLength(1);
     expect(github.commits[0]).toHaveLength(2);

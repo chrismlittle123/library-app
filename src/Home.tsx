@@ -2,7 +2,7 @@ import { useDeferredValue, useMemo, useRef, useState } from "react";
 import { NoteSearch } from "./search";
 import type { NoteRecord } from "./sync/store";
 import type { SyncStatus } from "./useSync";
-import { isConflictCopy, listFolder, newNotePath, noteTitle } from "./vault";
+import { isConflictCopy, listFolder, newNotePath, noteTitle } from "./library";
 
 interface Props {
   notes: NoteRecord[];
@@ -74,7 +74,7 @@ export function Home(props: Props) {
             ⚙
           </button>
         )}
-        <h1 className="bar-title">{folder ? noteTitle(folder) : "Vault"}</h1>
+        <h1 className="bar-title">{folder ? noteTitle(folder) : "Library"}</h1>
         <button type="button" className="sync-button" data-status={line.state} onClick={onSync}>
           {line.text}
         </button>

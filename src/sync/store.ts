@@ -28,8 +28,11 @@ const STORE = "notes";
 export function openStore(owner: string, repo: string): NoteStore {
   const name = `vault:${owner}/${repo}`;
   let opening: Promise<IDBDatabase> | null = null;
+  let erased = false;
 
   function open(): Promise<IDBDatabase> {
+    // A sync still running mustn't bring back a database that was just erased.
+    if (erased) return Promise.reject(new Error("This phone's copy was erased."));
     opening ??= new Promise((resolve, reject) => {
       const request = indexedDB.open(name, 1);
       request.onupgradeneeded = () => {
@@ -51,23 +54,37 @@ export function openStore(owner: string, repo: string): NoteStore {
     return opening;
   }
 
-  async function read<T>(run: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
-    const db = await open();
-    return new Promise((resolve, reject) => {
-      const request = run(db.transaction(STORE).objectStore(STORE));
+  async function withTransaction<T>(mode: IDBTransactionMode, work: (tx: IDBTransaction) => Promise<T>): Promise<T> {
+    let tx: IDBTransaction;
+    try {
+      tx = (await open()).transaction(STORE, mode);
+    } catch {
+      // iOS can drop the connection without firing onclose, so reopen once.
+      opening = null;
+      tx = (await open()).transaction(STORE, mode);
+    }
+    try {
+      return await work(tx);
+    } catch (error) {
+      opening = null;
+      throw error;
+    }
+  }
+
+  function read<T>(run: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
+    return withTransaction("readonly", (tx) => new Promise((resolve, reject) => {
+      const request = run(tx.objectStore(STORE));
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error ?? new Error("Couldn't read the note."));
-    });
+    }));
   }
 
   return {
     all: () => read((store) => store.getAll() as IDBRequest<NoteRecord[]>),
     get: (path) => read((store) => store.get(path) as IDBRequest<NoteRecord | undefined>),
 
-    async update(path, change) {
-      const db = await open();
-      await new Promise<void>((resolve, reject) => {
-        const tx = db.transaction(STORE, "readwrite");
+    update(path, change) {
+      return withTransaction("readwrite", (tx) => new Promise<void>((resolve, reject) => {
         const store = tx.objectStore(STORE);
         const get = store.get(path);
         get.onsuccess = () => {
@@ -79,13 +96,14 @@ export function openStore(owner: string, repo: string): NoteStore {
         tx.oncomplete = () => resolve();
         tx.onerror = () => reject(tx.error ?? new Error("Couldn't save the note."));
         tx.onabort = () => reject(tx.error ?? new Error("Couldn't save the note."));
-      });
+      }));
     },
 
     async erase() {
       const db = await open();
       db.close();
       opening = null;
+      erased = true;
       await new Promise<void>((resolve, reject) => {
         const request = indexedDB.deleteDatabase(name);
         request.onsuccess = () => resolve();
@@ -95,12 +113,17 @@ export function openStore(owner: string, repo: string): NoteStore {
   };
 }
 
-/** Record a user's edit. It stays dirty until sync confirms it reached GitHub. */
-export function saveEdit(store: NoteStore, path: string, text: string): Promise<void> {
+/**
+ * Record a user's edit. It stays dirty until sync confirms it reached GitHub.
+ * `editedFrom` is the text the edit was made from. If the stored note has changed
+ * since, the edit didn't see that change, so it loses its base and the next sync
+ * keeps both versions rather than pushing over the change.
+ */
+export function saveEdit(store: NoteStore, path: string, text: string, editedFrom: string): Promise<void> {
   return store.update(path, (current) => ({
     path,
     text,
-    baseSha: current?.baseSha ?? null,
+    baseSha: current && current.text === editedFrom ? current.baseSha : null,
     dirty: true,
     rev: (current?.rev ?? 0) + 1,
     updatedAt: Date.now(),

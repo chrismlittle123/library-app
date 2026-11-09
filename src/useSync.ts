@@ -47,7 +47,11 @@ export function useSync(config: RepoConfig, store: NoteStore) {
           error instanceof GitHubError ? error : new GitHubError("other", "Sync failed.");
         setStatus((s) => ({ ...s, error: failure }));
       }
-      setNotes(await store.all());
+      try {
+        setNotes(await store.all());
+      } catch {
+        // The next run tries again. Throwing here would leave sync stuck as running.
+      }
     } while (again.current);
     running.current = false;
     setStatus((s) => ({ ...s, running: false, progress: null }));
@@ -55,7 +59,8 @@ export function useSync(config: RepoConfig, store: NoteStore) {
 
   useEffect(() => {
     let live = true;
-    void store.all().then((all) => {
+    // If storage fails here, the first sync's run tries it again.
+    void store.all().catch((): NoteRecord[] => []).then((all) => {
       if (!live) return;
       setNotes(all);
       setLoaded(true);
@@ -82,8 +87,8 @@ export function useSync(config: RepoConfig, store: NoteStore) {
   }, [run, store]);
 
   const edit = useCallback(
-    async (path: string, text: string) => {
-      await saveEdit(store, path, text);
+    async (path: string, text: string, editedFrom: string) => {
+      await saveEdit(store, path, text, editedFrom);
       const saved = await store.get(path);
       if (saved) {
         setNotes((all) => [...all.filter((note) => note.path !== path), saved]);
