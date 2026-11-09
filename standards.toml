@@ -1,7 +1,7 @@
-# vault-app - prototype, TypeScript and React (Vite)
+# library-app - prototype, TypeScript and React (Vite)
 [metadata]
 tier = "prototype"
-project = "vault-app"
+project = "library-app"
 
 [extends]
 registry = "github:chrismlittle123/standards@standards-v7.0.0"

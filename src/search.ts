@@ -1,6 +1,6 @@
 import MiniSearch from "minisearch";
 import type { NoteRecord } from "./sync/store";
-import { noteTitle } from "./vault";
+import { noteTitle } from "./library";
 
 export interface SearchHit {
   path: string;

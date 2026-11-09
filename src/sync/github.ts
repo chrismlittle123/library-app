@@ -45,6 +45,8 @@ export function isNotePath(path: string): boolean {
 }
 
 const API = "https://api.github.com";
+// iOS can leave a request hanging after the app is suspended, which would block every later sync.
+const REQUEST_TIMEOUT_MS = 30_000;
 
 export function createGitHub(config: RepoConfig, fetchFn: typeof fetch = fetch.bind(globalThis)): GitHubApi {
   const prefix = config.root ? `${config.root}/` : "";
@@ -57,6 +59,7 @@ export function createGitHub(config: RepoConfig, fetchFn: typeof fetch = fetch.b
         ...init,
         // A cached ref would make the phone think it was up to date when it wasn't.
         cache: "no-store",
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
         headers: {
           Accept: "application/vnd.github+json",
           Authorization: `Bearer ${config.token}`,
@@ -64,10 +67,10 @@ export function createGitHub(config: RepoConfig, fetchFn: typeof fetch = fetch.b
           ...(init?.body ? { "Content-Type": "application/json" } : {}),
         },
       });
+      if (response.ok) return (await response.json()) as T;
     } catch {
       throw new GitHubError("network", "Couldn't reach GitHub.");
     }
-    if (response.ok) return (await response.json()) as T;
     throw errorFor(response);
   }
 

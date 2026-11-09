@@ -1,15 +1,32 @@
 import { useState } from "react";
-import type { RepoConfig } from "./sync/github";
+import { GitHubError, createGitHub, type RepoConfig } from "./sync/github";
 
 interface Props {
   config: RepoConfig;
   unsynced: number;
   onBack: () => void;
+  onReplaceKey: (token: string) => void;
   onDisconnect: () => void;
 }
 
-export function Settings({ config, unsynced, onBack, onDisconnect }: Props) {
+export function Settings({ config, unsynced, onBack, onReplaceKey, onDisconnect }: Props) {
   const [confirming, setConfirming] = useState(false);
+  const [token, setToken] = useState("");
+  const [checking, setChecking] = useState(false);
+  const [keyError, setKeyError] = useState<string | null>(null);
+
+  const replaceKey = async () => {
+    setChecking(true);
+    setKeyError(null);
+    try {
+      await createGitHub({ ...config, token: token.trim() }).getTree();
+      onReplaceKey(token.trim());
+    } catch (failure) {
+      setKeyError(failure instanceof GitHubError ? failure.message : "Couldn't reach GitHub.");
+      setChecking(false);
+    }
+  };
+
   return (
     <>
       <header className="bar">
@@ -31,6 +48,35 @@ export function Settings({ config, unsynced, onBack, onDisconnect }: Props) {
           <dt>Version</dt>
           <dd>{__BUILD__}</dd>
         </dl>
+        <form
+          className="setup"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void replaceKey();
+          }}
+        >
+          <label>
+            New GitHub key
+            <input
+              type="password"
+              value={token}
+              autoCapitalize="off"
+              autoCorrect="off"
+              autoComplete="off"
+              spellCheck={false}
+              onChange={(event) => setToken(event.target.value)}
+            />
+          </label>
+          <p className="hint">If your key expires, a new one here keeps everything on this phone.</p>
+          {keyError && (
+            <p className="error" role="alert">
+              {keyError}
+            </p>
+          )}
+          <button type="submit" className="secondary" disabled={checking || !token.trim()}>
+            {checking ? "Checking…" : "Replace key"}
+          </button>
+        </form>
         <div className="actions">
           {confirming ? (
             <>

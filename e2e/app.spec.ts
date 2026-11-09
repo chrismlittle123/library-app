@@ -1,12 +1,14 @@
 import { expect, test, type Page } from "@playwright/test";
 
-const REPO = "chrismlittle123/vault-app-test";
-const token = process.env.VAULT_TEST_TOKEN ?? "";
+const REPO = "chrismlittle123/library-app-test";
+const token = process.env.LIBRARY_TEST_TOKEN ?? "";
 const API = `https://api.github.com/repos/${REPO}/contents/vault`;
 const HEADERS = { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" };
 
-test.skip(!token, "needs VAULT_TEST_TOKEN");
+test.skip(!token, "needs LIBRARY_TEST_TOKEN");
 test.describe.configure({ mode: "serial" });
+// The service worker hides requests from the blob cache. The offline test turns it back on.
+test.use({ serviceWorkers: "block" });
 
 function isoToday() {
   const d = new Date();
@@ -37,7 +39,26 @@ async function writeRemote(path: string, text: string) {
   expect(response.ok).toBe(true);
 }
 
+const blobs = new Map<string, string>();
+
+/**
+ * A blob's content never changes, so each is fetched from GitHub once per run.
+ * Otherwise every test downloads the whole practice repo and hits the rate limit.
+ */
+async function serveBlobsFromCache(page: Page) {
+  await page.route("**/git/blobs/*", async (route) => {
+    const url = route.request().url();
+    const cached = blobs.get(url);
+    const headers = { "access-control-allow-origin": "*", "content-type": "application/json" };
+    if (cached) return route.fulfill({ status: 200, headers, body: cached });
+    const response = await route.fetch();
+    if (response.ok()) blobs.set(url, await response.text());
+    return route.fulfill({ response });
+  });
+}
+
 async function connect(page: Page) {
+  await serveBlobsFromCache(page);
   await page.goto("/");
   await page.getByLabel("Repo", { exact: true }).fill(REPO);
   await page.getByLabel("GitHub key").fill(token);
@@ -123,12 +144,12 @@ test("search ignores accents and tolerates typos", async ({ page }) => {
   await connect(page);
   await page.getByLabel("Search notes").fill("senorio");
   await expect(page.getByRole("button", { name: /tomato-soup/ })).toBeVisible();
-  await page.getByLabel("Search notes").fill("heronn");
-  await expect(page.getByRole("button", { name: /2026-10-26/ })).toBeVisible();
-  await page.getByRole("button", { name: /2026-10-26/ }).click();
-  await expect(editor(page)).toContainText("heron");
+  await page.getByLabel("Search notes").fill("senorrio");
+  await expect(page.getByRole("button", { name: /tomato-soup/ })).toBeVisible();
+  await page.getByRole("button", { name: /tomato-soup/ }).click();
+  await expect(editor(page)).toContainText("Señorío");
   await page.getByRole("button", { name: "Back" }).click();
-  await expect(page.getByLabel("Search notes")).toHaveValue("heronn");
+  await expect(page.getByLabel("Search notes")).toHaveValue("senorrio");
 });
 
 test("an open note picks up a change from elsewhere", async ({ page }) => {
@@ -140,6 +161,9 @@ test("an open note picks up a change from elsewhere", async ({ page }) => {
   await expect(editor(page)).toContainText(mark, { timeout: 20_000 });
   await expect(page.getByRole("status")).toHaveText("Synced");
 });
+
+test.describe("with the service worker", () => {
+test.use({ serviceWorkers: "allow" });
 
 test("writing offline survives a reload and pushes once back online", async ({ page, context }) => {
   await connect(page);
@@ -156,16 +180,15 @@ test("writing offline survives a reload and pushes once back online", async ({ p
   expect(await readRemote("catalogues/recipes/tomato-soup.md")).not.toContain(mark);
 
   // The service worker serves the app, and the note comes back from the phone's storage.
-  await page.waitForFunction(() => navigator.serviceWorker.controller !== null, undefined, { timeout: 15_000 }).catch(() => {});
-  if (await page.evaluate(() => navigator.serviceWorker.controller !== null)) {
-    await page.reload();
-    await expect(page.getByRole("region", { name: "Not synced" })).toContainText("tomato-soup");
-  }
+  await page.waitForFunction(() => navigator.serviceWorker.controller !== null, undefined, { timeout: 15_000 });
+  await page.reload();
+  await expect(page.getByRole("region", { name: "Not synced" })).toContainText("tomato-soup");
 
   await context.setOffline(false);
   await page.evaluate(() => window.dispatchEvent(new Event("online")));
   await expect(page.getByRole("button", { name: "Synced", exact: true })).toBeVisible({ timeout: 30_000 });
   expect(await readRemote("catalogues/recipes/tomato-soup.md")).toContain(mark);
+});
 });
 
 test("a change on both sides keeps both versions", async ({ page, context }) => {

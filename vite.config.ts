@@ -40,9 +40,9 @@ export default defineConfig({
       registerType: "autoUpdate",
       includeAssets: ["apple-touch-icon.png"],
       manifest: {
-        name: "Vault",
-        short_name: "Vault",
-        description: "A phone editor for a git-backed vault",
+        name: "Library",
+        short_name: "Library",
+        description: "A phone editor for a git-backed library",
         theme_color: "#16151a",
         background_color: "#16151a",
         display: "standalone",

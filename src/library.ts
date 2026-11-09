@@ -6,7 +6,7 @@ export function isoDate(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
-/** Matches the vault's layout: diary/daily/YYYY/MM/YYYY-MM-DD.md */
+/** Matches the library's layout: diary/daily/YYYY/MM/YYYY-MM-DD.md */
 export function diaryPath(date: Date): string {
   return `diary/daily/${date.getFullYear()}/${pad(date.getMonth() + 1)}/${isoDate(date)}.md`;
 }

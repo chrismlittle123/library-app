@@ -8,13 +8,13 @@ import {
   listFolder,
   newNotePath,
   noteTitle,
-} from "./vault";
+} from "./library";
 
 function note(path: string, text = "", dirty = false): NoteRecord {
   return { path, text, baseSha: null, dirty, rev: 1, updatedAt: 0 };
 }
 
-describe("vault paths", () => {
+describe("library paths", () => {
   const date = new Date(2026, 0, 5);
 
   it("builds the diary path", () => {

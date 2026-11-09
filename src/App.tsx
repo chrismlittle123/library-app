@@ -7,7 +7,7 @@ import { Setup } from "./Setup";
 import type { RepoConfig } from "./sync/github";
 import { openStore, type NoteStore } from "./sync/store";
 import { useSync } from "./useSync";
-import { DIARY_TEMPLATE_PATH, diaryPath, fillTemplate, noteTitle } from "./vault";
+import { DIARY_TEMPLATE_PATH, diaryPath, fillTemplate, noteTitle } from "./library";
 
 /** Fit the app to the space above the keyboard, which iOS doesn't do for us. */
 function useVisualViewport() {
@@ -33,15 +33,23 @@ function useVisualViewport() {
 export function App() {
   useVisualViewport();
   const [config, setConfig] = useState(loadConfig);
-  const store = useMemo(() => config && openStore(config.owner, config.repo), [config]);
+  const owner = config?.owner;
+  const repo = config?.repo;
+  // Kept when the key is replaced, because disconnecting has to close this store's connection.
+  const store = useMemo(() => (owner && repo ? openStore(owner, repo) : null), [owner, repo]);
 
   let content;
   if (config && store) {
     content = (
       <Connected
-        key={`${config.owner}/${config.repo}`}
+        key={`${config.owner}/${config.repo}/${config.token}`}
         config={config}
         store={store}
+        onReplaceKey={(token) => {
+          const next = { ...config, token };
+          saveConfig(next);
+          setConfig(next);
+        }}
         onDisconnect={() => {
           void store.erase();
           saveConfig(null);
@@ -71,10 +79,12 @@ type Screen =
 function Connected({
   config,
   store,
+  onReplaceKey,
   onDisconnect,
 }: {
   config: RepoConfig;
   store: NoteStore;
+  onReplaceKey: (token: string) => void;
   onDisconnect: () => void;
 }) {
   const { notes, loaded, status, edit, syncNow, conflicts, clearConflicts } = useSync(config, store);
@@ -101,7 +111,10 @@ function Connected({
   };
 
   const notePath = screen.name === "note" ? screen.path : null;
-  const save = useCallback((text: string) => edit(notePath!, text), [edit, notePath]);
+  const save = useCallback(
+    (text: string, editedFrom: string) => edit(notePath!, text, editedFrom),
+    [edit, notePath],
+  );
   const readStored = useCallback(() => store.get(notePath!), [store, notePath]);
 
   if (!loaded) return null;
@@ -124,6 +137,7 @@ function Connected({
         config={config}
         unsynced={notes.filter((note) => note.dirty).length}
         onBack={() => setScreen({ name: "home" })}
+        onReplaceKey={onReplaceKey}
         onDisconnect={onDisconnect}
       />
     );
