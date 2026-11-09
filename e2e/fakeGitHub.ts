@@ -99,6 +99,13 @@ export class FakeGitHub {
       return reply(200, { content: Buffer.from(this.blobs.get(match[1])!).toString("base64") });
     }
 
+    match = /^\/contents\/(.+)$/.exec(path);
+    if (method === "GET" && match) {
+      const text = this.commits.get(this.head)!.get(decodeURIComponent(match[1]));
+      if (text === undefined) return reply(404, {});
+      return reply(200, { content: Buffer.from(text).toString("base64") });
+    }
+
     const body = request.postDataJSON() as Record<string, never>;
     if (method === "POST" && path === "/git/trees") {
       const files: Files = new Map(this.trees.get(body.base_tree));

@@ -57,6 +57,9 @@ class FakeGitHub implements GitHubApi {
     }
     throw new Error(`no blob ${sha}`);
   }
+  async readFile() {
+    return null;
+  }
   async commit(base: RemoteTree, changes: FileChange[]) {
     this.beforeCommit?.();
     this.beforeCommit = null;
