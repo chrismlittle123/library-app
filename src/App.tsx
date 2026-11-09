@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { loadConfig, saveConfig } from "./config";
 import { Editor } from "./Editor";
 import { Home } from "./Home";
+import { Review } from "./review/Review";
+import { clearCache } from "./review/storage";
 import { Settings } from "./Settings";
 import { Setup } from "./Setup";
 import type { RepoConfig } from "./sync/github";
@@ -52,6 +54,7 @@ export function App() {
         }}
         onDisconnect={() => {
           void store.erase();
+          clearCache();
           saveConfig(null);
           setConfig(null);
         }}
@@ -69,6 +72,8 @@ export function App() {
   }
   return <div className="app">{content}</div>;
 }
+
+type Tab = "library" | "review";
 
 type Screen =
   | { name: "home" }
@@ -89,6 +94,7 @@ function Connected({
 }) {
   const { notes, loaded, status, edit, syncNow, conflicts, clearConflicts } = useSync(config, store);
   const [screen, setScreen] = useState<Screen>({ name: "home" });
+  const [tab, setTab] = useState<Tab>("library");
   const [folder, setFolder] = useState("");
   // Kept here so going back from a search result returns to the results.
   const [query, setQuery] = useState("");
@@ -162,6 +168,24 @@ function Connected({
     );
   }
 
+  const tabs = (
+    <nav className="tabs" aria-label="Sections">
+      {(["library", "review"] as const).map((item) => (
+        <button
+          key={item}
+          type="button"
+          className="tab"
+          aria-current={tab === item ? "page" : undefined}
+          onClick={() => setTab(item)}
+        >
+          {item === "library" ? "Library" : "Flashcards"}
+        </button>
+      ))}
+    </nav>
+  );
+
+  if (tab === "review") return <Review config={config} tabs={tabs} />;
+
   return (
     <>
       {notice}
@@ -178,6 +202,7 @@ function Connected({
         onSync={() => void syncNow()}
         onSettings={() => setScreen({ name: "settings" })}
       />
+      {tabs}
     </>
   );
 }

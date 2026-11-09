@@ -26,6 +26,8 @@ export interface GitHubApi {
   /** Null when the file isn't valid UTF-8. */
   getText(sha: string): Promise<string | null>;
   commit(base: RemoteTree, changes: FileChange[], message: string): Promise<void>;
+  /** One file by its path relative to the root, whatever its type. Null when it isn't valid UTF-8. */
+  readFile(path: string): Promise<string | null>;
 }
 
 export type GitHubErrorKind = "auth" | "not-found" | "rate-limit" | "stale" | "network" | "other";
@@ -98,6 +100,12 @@ export function createGitHub(config: RepoConfig, fetchFn: typeof fetch = fetch.b
     async getText(sha) {
       const blob = await request<{ content: string }>(`/git/blobs/${sha}`);
       return decodeBase64(blob.content);
+    },
+
+    async readFile(path) {
+      const encoded = `${prefix}${path}`.split("/").map(encodeURIComponent).join("/");
+      const file = await request<{ content: string }>(`/contents/${encoded}?ref=${encodeURIComponent(config.branch)}`);
+      return decodeBase64(file.content);
     },
 
     async commit(base, changes, message) {

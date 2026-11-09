@@ -7,7 +7,7 @@ const CSP = [
   "script-src 'self'",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data:",
-  "connect-src 'self' https://api.github.com",
+  "connect-src 'self' https://api.github.com https://openbanking.chris-little.com",
   "manifest-src 'self'",
   "worker-src 'self'",
   "base-uri 'none'",
@@ -25,7 +25,8 @@ export default defineConfig({
     react(),
     {
       // Build only, because the dev server relies on inline scripts. The GitHub key
-      // lives in this page, so it may only ever talk to itself and GitHub.
+      // lives in this page, so it may only ever talk to itself, GitHub and the server
+      // that logs reviews.
       name: "content-security-policy",
       apply: "build",
       transformIndexHtml: () => [
