@@ -7,8 +7,22 @@ import { insertLink, toggleLinePrefix, toggleWrap } from "./commands";
 import { loadMode, saveMode } from "./config";
 import { createEditorState, setMode, type Mode } from "./editorState";
 import type { NoteRecord } from "./sync/store";
-import { BackIcon } from "./icons";
-import { isGenerated, noteName } from "./library";
+import {
+  BackIcon,
+  BoldIcon,
+  CheckboxIcon,
+  HeadingIcon,
+  HideKeyboardIcon,
+  ItalicIcon,
+  LinkIcon,
+  ListIcon,
+  RedoIcon,
+  UndoIcon,
+} from "./icons";
+import { isGenerated, leadingHeading, noteName } from "./library";
+
+// Past this, the note's own heading has scrolled away and the bar takes over naming it.
+const TITLE_SCROLL_PX = 48;
 
 const SAVE_DELAY_MS = 250;
 
@@ -31,6 +45,9 @@ export function Editor({ path, text, record, readStored, onSave, onBack, autoFoc
   const [saving, setSaving] = useState(false);
   const [saveFailed, setSaveFailed] = useState(false);
   const [readOnly] = useState(() => isGenerated(text));
+  // The note's heading names it on the page, so the bar only does once that's scrolled off.
+  const [hasHeading] = useState(() => leadingHeading(text) !== null);
+  const [scrolledPastHeading, setScrolledPastHeading] = useState(false);
 
   const timer = useRef<number>();
   const applyingRemote = useRef(false);
@@ -77,6 +94,8 @@ export function Editor({ path, text, record, readStored, onSave, onBack, autoFoc
       state: createEditorState(text, loadMode(), readOnly, onChange),
     });
     view.current = editor;
+    const onScroll = () => setScrolledPastHeading(editor.scrollDOM.scrollTop > TITLE_SCROLL_PX);
+    editor.scrollDOM.addEventListener("scroll", onScroll, { passive: true });
     if (autoFocus && !readOnly) {
       // A new note opens with its template, and writing carries on below that.
       editor.dispatch({ selection: { anchor: editor.state.doc.length } });
@@ -99,6 +118,7 @@ export function Editor({ path, text, record, readStored, onSave, onBack, autoFoc
       document.removeEventListener("visibilitychange", onHide);
       window.removeEventListener("pagehide", save);
       window.visualViewport?.removeEventListener("resize", keepCursorVisible);
+      editor.scrollDOM.removeEventListener("scroll", onScroll);
       save();
       editor.destroy();
       view.current = null;
@@ -148,16 +168,16 @@ export function Editor({ path, text, record, readStored, onSave, onBack, autoFoc
     if (view.current) setMode(view.current, next);
   };
 
-  const tools: { label: string; name: string; action: () => void }[] = [
-    { label: "H", name: "Heading", action: run((s) => toggleLinePrefix(s, "## ")) },
-    { label: "B", name: "Bold", action: run((s) => toggleWrap(s, "**")) },
-    { label: "I", name: "Italic", action: run((s) => toggleWrap(s, "*")) },
-    { label: "•", name: "List", action: run((s) => toggleLinePrefix(s, "- ")) },
-    { label: "☐", name: "Checkbox", action: run((s) => toggleLinePrefix(s, "- [ ] ")) },
-    { label: "[[", name: "Link", action: run(insertLink) },
-    { label: "↶", name: "Undo", action: () => view.current && undo(view.current) },
-    { label: "↷", name: "Redo", action: () => view.current && redo(view.current) },
-    { label: "⌄", name: "Hide keyboard", action: () => view.current?.contentDOM.blur() },
+  const tools: { icon: JSX.Element; name: string; action: () => void }[] = [
+    { icon: <HeadingIcon />, name: "Heading", action: run((s) => toggleLinePrefix(s, "## ")) },
+    { icon: <BoldIcon />, name: "Bold", action: run((s) => toggleWrap(s, "**")) },
+    { icon: <ItalicIcon />, name: "Italic", action: run((s) => toggleWrap(s, "*")) },
+    { icon: <ListIcon />, name: "List", action: run((s) => toggleLinePrefix(s, "- ")) },
+    { icon: <CheckboxIcon />, name: "Checkbox", action: run((s) => toggleLinePrefix(s, "- [ ] ")) },
+    { icon: <LinkIcon />, name: "Link", action: run(insertLink) },
+    { icon: <UndoIcon />, name: "Undo", action: () => view.current && undo(view.current) },
+    { icon: <RedoIcon />, name: "Redo", action: () => view.current && redo(view.current) },
+    { icon: <HideKeyboardIcon />, name: "Hide keyboard", action: () => view.current?.contentDOM.blur() },
   ];
 
   let label = "Synced";
@@ -189,7 +209,9 @@ export function Editor({ path, text, record, readStored, onSave, onBack, autoFoc
         >
           <BackIcon />
         </button>
-        <h1 className="bar-title">{noteName(path, text)}</h1>
+        <h1 className="bar-title" data-hidden={(hasHeading && !scrolledPastHeading) || undefined}>
+          {noteName(path, text)}
+        </h1>
         <span className="status" role="status" data-status={state}>
           {label}
         </span>
@@ -212,7 +234,7 @@ export function Editor({ path, text, record, readStored, onSave, onBack, autoFoc
               onMouseDown={(event) => event.preventDefault()}
               onClick={tool.action}
             >
-              {tool.label}
+              {tool.icon}
             </button>
           ))}
         </nav>

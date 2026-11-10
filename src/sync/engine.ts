@@ -1,5 +1,5 @@
 import { blobSha } from "./blob";
-import { GitHubError, type FileChange, type GitHubApi, type RemoteTree } from "./github";
+import { BATCH_SIZE, GitHubError, type FileChange, type GitHubApi, type RemoteTree } from "./github";
 import type { NoteRecord, NoteStore } from "./store";
 
 const MAX_ATTEMPTS = 4;
@@ -89,25 +89,33 @@ async function pull(
   let done = 0;
   const total = downloads.length;
   if (total > 0) onProgress(0, total);
-  const queue = [...downloads];
-  await Promise.all(
-    Array.from({ length: DOWNLOAD_CONCURRENCY }, async () => {
-      for (let next = queue.shift(); next; next = queue.shift()) {
-        const { path, sha, seenRev } = next;
-        const text = await api.getText(sha);
-        // Stored one at a time, so an interrupted first download picks up where it stopped.
-        if (text !== null) {
-          await store.update(path, (current) => {
-            if ((current?.rev ?? 0) !== seenRev || current?.dirty) return undefined;
-            result.downloaded += 1;
-            return { path, text, baseSha: sha, dirty: false, rev: seenRev, updatedAt: current?.updatedAt ?? 0 };
-          });
-        }
-        done += 1;
-        onProgress(done, total);
-      }
-    }),
-  );
+  // Stored one at a time, so an interrupted first download picks up where it stopped.
+  const save = async ({ path, sha, seenRev }: (typeof downloads)[number], text: string | null) => {
+    if (text !== null) {
+      await store.update(path, (current) => {
+        if ((current?.rev ?? 0) !== seenRev || current?.dirty) return undefined;
+        result.downloaded += 1;
+        return { path, text, baseSha: sha, dirty: false, rev: seenRev, updatedAt: current?.updatedAt ?? 0 };
+      });
+    }
+    done += 1;
+    onProgress(done, total);
+  };
+  for (let start = 0; start < downloads.length; start += BATCH_SIZE) {
+    const batch = downloads.slice(start, start + BATCH_SIZE);
+    const texts = await api.getTexts(batch.map((item) => item.sha));
+    for (const item of batch) {
+      const text = texts.get(item.sha);
+      if (text !== undefined) await save(item, text);
+    }
+    // Whatever the batch didn't bring back comes one at a time.
+    const queue = batch.filter((item) => !texts.has(item.sha));
+    await Promise.all(
+      Array.from({ length: DOWNLOAD_CONCURRENCY }, async () => {
+        for (let next = queue.shift(); next; next = queue.shift()) await save(next, await api.getText(next.sha));
+      }),
+    );
+  }
 
   for (const { note, sha } of conflicts) {
     const text = await api.getText(sha);

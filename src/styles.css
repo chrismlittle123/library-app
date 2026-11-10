@@ -77,6 +77,12 @@ body {
   letter-spacing: 0.2px;
   text-overflow: ellipsis;
   white-space: nowrap;
+  transition: opacity 0.25s;
+}
+
+/* Hidden, not removed, so the bar's layout doesn't jump when it fades in. */
+.bar-title[data-hidden] {
+  opacity: 0;
 }
 
 .status,
@@ -457,8 +463,9 @@ section h2,
   flex: none;
   display: flex;
   align-items: center;
-  gap: 2px;
-  padding: 4px 8px calc(env(safe-area-inset-bottom) + 4px);
+  justify-content: space-between;
+  gap: 0;
+  padding: 4px 6px calc(env(safe-area-inset-bottom) + 4px);
   overflow-x: auto;
   border-top: 1px dashed var(--line);
   scrollbar-width: none;
@@ -466,6 +473,12 @@ section h2,
 
 .keyboard-open .toolbar {
   padding-bottom: 4px;
+}
+
+/* Nine tools fit a 390pt-wide phone at 40pt each; still 44pt tall for a thumb. */
+.toolbar .tool {
+  min-width: 40px;
+  color: var(--muted);
 }
 
 .tool {

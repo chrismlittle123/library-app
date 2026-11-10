@@ -1,4 +1,4 @@
-import { decodeBase64 } from "./blob";
+import { blobSha, decodeBase64 } from "./blob";
 
 export interface RepoConfig {
   owner: string;
@@ -25,6 +25,11 @@ export interface GitHubApi {
   getTree(): Promise<RemoteTree>;
   /** Null when the file isn't valid UTF-8. */
   getText(sha: string): Promise<string | null>;
+  /**
+   * Many notes in one request. Only texts that hash back to their SHA are
+   * returned, so anything missing is fetched one at a time with getText.
+   */
+  getTexts(shas: string[]): Promise<Map<string, string>>;
   commit(base: RemoteTree, changes: FileChange[], message: string): Promise<void>;
   /** One file by its path relative to the root, whatever its type. Null when it isn't valid UTF-8. */
   readFile(path: string): Promise<string | null>;
@@ -47,6 +52,8 @@ export function isNotePath(path: string): boolean {
 }
 
 const API = "https://api.github.com";
+/** How many notes one batch asks for. GraphQL charges a batch as one request. */
+export const BATCH_SIZE = 100;
 // iOS can leave a request hanging after the app is suspended, which would block every later sync.
 const REQUEST_TIMEOUT_MS = 30_000;
 
@@ -100,6 +107,43 @@ export function createGitHub(config: RepoConfig, fetchFn: typeof fetch = fetch.b
     async getText(sha) {
       const blob = await request<{ content: string }>(`/git/blobs/${sha}`);
       return decodeBase64(blob.content);
+    },
+
+    async getTexts(shas) {
+      const texts = new Map<string, string>();
+      const wanted = shas.filter((sha) => /^[0-9a-f]{40}$/.test(sha));
+      if (wanted.length === 0) return texts;
+      const fields = wanted
+        .map((sha, i) => `b${i}: object(oid: "${sha}") { ... on Blob { text isBinary isTruncated } }`)
+        .join(" ");
+      let data: Record<string, { text: string | null; isBinary: boolean; isTruncated: boolean } | null> | undefined;
+      try {
+        const response = await fetchFn(`${API}/graphql`, {
+          method: "POST",
+          cache: "no-store",
+          signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+          headers: { Authorization: `Bearer ${config.token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            query: `query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { ${fields} } }`,
+            variables: { owner: config.owner, name: config.repo },
+          }),
+        });
+        // Refused or failed: the one-at-a-time path gets the notes and reports any real error.
+        if (!response.ok) return texts;
+        data = ((await response.json()) as { data?: { repository?: typeof data } }).data?.repository ?? undefined;
+      } catch {
+        return texts;
+      }
+      if (!data) return texts;
+      await Promise.all(
+        wanted.map(async (sha, i) => {
+          const blob = data[`b${i}`];
+          if (!blob || blob.isBinary || blob.isTruncated || blob.text === null) return;
+          // Proof the text is exactly what's in git, not a re-encoded copy.
+          if ((await blobSha(blob.text)) === sha) texts.set(sha, blob.text);
+        }),
+      );
+      return texts;
     },
 
     async readFile(path) {
