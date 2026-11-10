@@ -22,9 +22,13 @@ interface Props {
   onSettings: () => void;
   /** Paths of notes opened on this phone, most recent first. */
   recent: string[];
+  /** Deletions made here that haven't reached GitHub yet. */
+  pendingDeletes: number;
+  onDeleteFolder: (paths: string[]) => void;
 }
 
 function statusLine(status: SyncStatus, unsynced: number): { text: string; state: string } {
+  // Shown as "not synced" too: a deletion is a change GitHub doesn't have yet.
   const pending = unsynced > 0 ? ` · ${unsynced} not synced` : "";
   if (status.progress && status.progress.total > 0) {
     return {
@@ -40,8 +44,23 @@ function statusLine(status: SyncStatus, unsynced: number): { text: string; state
 }
 
 export function Home(props: Props) {
-  const { notes, status, folder, onFolder, query, onQuery, onOpen, onWrite, onCreate, onSync, onSettings, recent } =
-    props;
+  const {
+    notes,
+    status,
+    folder,
+    onFolder,
+    query,
+    onQuery,
+    onOpen,
+    onWrite,
+    onCreate,
+    onSync,
+    onSettings,
+    recent,
+    pendingDeletes,
+    onDeleteFolder,
+  } = props;
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [naming, setNaming] = useState(false);
   const [name, setName] = useState("");
   const deferredQuery = useDeferredValue(query);
@@ -72,7 +91,12 @@ export function Home(props: Props) {
     return recent.flatMap((path) => byPath.get(path) ?? []).slice(0, RECENT_SHOWN);
   }, [notes, recent]);
   const showRecent = !folder && recentNotes.length > 0;
-  const line = statusLine(status, unsynced.length);
+  const line = statusLine(status, unsynced.length + pendingDeletes);
+  const inFolder = useMemo(
+    () => (folder ? notes.filter((note) => note.path.startsWith(`${folder}/`)) : []),
+    [notes, folder],
+  );
+  const unsyncedInFolder = inFolder.filter((note) => note.dirty).length;
   const parent = folder.includes("/") ? folder.slice(0, folder.lastIndexOf("/")) : "";
 
   const create = () => {
@@ -224,6 +248,47 @@ export function Home(props: Props) {
                 </button>
               )}
             </div>
+
+            {folder && inFolder.length > 0 && (
+              <div className="actions">
+                {confirmingDelete ? (
+                  <div className="confirm" role="alertdialog" aria-label="Delete this folder?">
+                    <p>
+                      Delete all {inFolder.length} {inFolder.length === 1 ? "note" : "notes"} in{" "}
+                      {displayName(folder)}, including any folders inside it? They go from GitHub on the next sync,
+                      as one commit, so they can be restored from git history. Files that aren't notes, like JSON,
+                      stay.
+                    </p>
+                    {unsyncedInFolder > 0 && (
+                      <p className="error">
+                        {unsyncedInFolder} of them {unsyncedInFolder === 1 ? "has" : "have"} changes that haven't
+                        reached GitHub, and those changes can't be restored.
+                      </p>
+                    )}
+                    <div className="confirm-actions">
+                      <button type="button" className="secondary" onClick={() => setConfirmingDelete(false)}>
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        className="danger"
+                        onClick={() => {
+                          setConfirmingDelete(false);
+                          onDeleteFolder(inFolder.map((note) => note.path));
+                          onFolder(parent);
+                        }}
+                      >
+                        Delete {inFolder.length} {inFolder.length === 1 ? "note" : "notes"}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button type="button" className="quiet-danger" onClick={() => setConfirmingDelete(true)}>
+                    Delete folder
+                  </button>
+                )}
+              </div>
+            )}
           </>
         )}
       </main>

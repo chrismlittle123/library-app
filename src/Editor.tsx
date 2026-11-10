@@ -10,6 +10,7 @@ import type { NoteRecord } from "./sync/store";
 import {
   BackIcon,
   BoldIcon,
+  TrashIcon,
   CheckboxIcon,
   HeadingIcon,
   HideKeyboardIcon,
@@ -35,10 +36,12 @@ interface Props {
   readStored: () => Promise<NoteRecord | undefined>;
   onSave: (text: string, editedFrom: string) => Promise<void>;
   onBack: () => void;
+  /** Deletes the note here, and from GitHub on the next sync. */
+  onDelete: () => Promise<void>;
   autoFocus: boolean;
 }
 
-export function Editor({ path, text, record, readStored, onSave, onBack, autoFocus }: Props) {
+export function Editor({ path, text, record, readStored, onSave, onBack, onDelete, autoFocus }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
   const [mode, setModeState] = useState<Mode>(loadMode);
@@ -48,6 +51,7 @@ export function Editor({ path, text, record, readStored, onSave, onBack, autoFoc
   // The note's heading names it on the page, so the bar only does once that's scrolled off.
   const [hasHeading] = useState(() => leadingHeading(text) !== null);
   const [scrolledPastHeading, setScrolledPastHeading] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const timer = useRef<number>();
   const applyingRemote = useRef(false);
@@ -219,7 +223,37 @@ export function Editor({ path, text, record, readStored, onSave, onBack, autoFoc
           <span aria-hidden="true">Aa</span>
           <span className="sr-only">Hide markdown symbols</span>
         </button>
+        {!readOnly && record && (
+          <button type="button" className="tool" aria-label="Delete note" onClick={() => setConfirmingDelete(true)}>
+            <TrashIcon />
+          </button>
+        )}
       </header>
+      {confirmingDelete && (
+        <div className="confirm" role="alertdialog" aria-label="Delete this note?">
+          <p>
+            Delete this note? It goes from GitHub on the next sync, as a commit of its own, so it can be restored
+            from git history.
+          </p>
+          <div className="confirm-actions">
+            <button type="button" className="secondary" onClick={() => setConfirmingDelete(false)}>
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="danger"
+              onClick={() => {
+                // A save still waiting would bring the note back after it's deleted.
+                void flush.current().then(() => {
+                  if (!queue.hasUnsaved) void onDelete();
+                });
+              }}
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      )}
       <main className="editor" ref={host} />
       {!readOnly && (
         <nav className="toolbar" aria-label="Formatting">

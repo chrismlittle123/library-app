@@ -1,7 +1,7 @@
 import { blobSha, decodeBase64 } from "./blob";
-import { conflictCopyPath, syncNotes } from "./engine";
+import { conflictCopyPath, deletionMessage, syncNotes } from "./engine";
 import { GitHubError, type FileChange, type GitHubApi, type RemoteTree, createGitHub, isNotePath } from "./github";
-import { saveEdit, type NoteRecord, type NoteStore } from "./store";
+import { markDeleted, saveEdit, type NoteRecord, type NoteStore } from "./store";
 
 /** An edit made from whatever is stored right now, as the editor normally does. */
 async function edit(store: NoteStore, path: string, text: string) {
@@ -32,6 +32,7 @@ class MemoryStore implements NoteStore {
 class FakeGitHub implements GitHubApi {
   files = new Map<string, string>();
   commits: FileChange[][] = [];
+  messages: string[] = [];
   headId = 0;
   beforeCommit: (() => void) | null = null;
   afterPush: (() => void) | null = null;
@@ -77,13 +78,17 @@ class FakeGitHub implements GitHubApi {
   async readFile() {
     return null;
   }
-  async commit(base: RemoteTree, changes: FileChange[]) {
+  async commit(base: RemoteTree, changes: FileChange[], message: string) {
     this.beforeCommit?.();
     this.beforeCommit = null;
     if (base.commitSha !== String(this.headId)) throw new GitHubError("stale", "moved");
-    for (const change of changes) this.files.set(change.path, change.text);
+    for (const change of changes) {
+      if (change.text === null) this.files.delete(change.path);
+      else this.files.set(change.path, change.text);
+    }
     this.headId += 1;
     this.commits.push(changes);
+    this.messages.push(message);
     this.afterPush?.();
     this.afterPush = null;
   }
@@ -115,7 +120,7 @@ describe("syncNotes", () => {
   it("does nothing when already in step", async () => {
     const { github, store } = await setup({ "a.md": "one" });
     const result = await syncNotes(github, store, undefined, NOW);
-    expect(result).toEqual({ downloaded: 0, pushed: 0, conflicts: [] });
+    expect(result).toEqual({ downloaded: 0, pushed: 0, deleted: 0, keptDeletes: [], conflicts: [] });
     expect(github.commits).toHaveLength(0);
   });
 
@@ -189,7 +194,7 @@ describe("syncNotes", () => {
     await github.set("a.md", "same");
     await edit(store, "a.md", "same");
     const result = await syncNotes(github, store, undefined, NOW);
-    expect(result).toEqual({ downloaded: 0, pushed: 0, conflicts: [] });
+    expect(result).toEqual({ downloaded: 0, pushed: 0, deleted: 0, keptDeletes: [], conflicts: [] });
     expect(store.notes.get("a.md")?.dirty).toBe(false);
   });
 
@@ -291,6 +296,71 @@ describe("syncNotes", () => {
     await syncNotes(github, store, undefined, NOW);
     expect(github.commits).toHaveLength(1);
     expect(github.commits[0]).toHaveLength(2);
+  });
+});
+
+describe("deleting", () => {
+  it("removes a deleted note from GitHub in a commit of its own", async () => {
+    const { github, store } = await setup({ "recipes/a.md": "A", "recipes/b.md": "B", "inbox/c.md": "C" });
+    await markDeleted(store, "recipes/a.md");
+    await markDeleted(store, "recipes/b.md");
+    await edit(store, "inbox/c.md", "C edited");
+    const result = await syncNotes(github, store, undefined, NOW);
+    expect(result.deleted).toBe(2);
+    expect([...github.files.keys()]).toEqual(["inbox/c.md"]);
+    expect(github.files.get("inbox/c.md")).toBe("C edited");
+    // The deletion and the edit are separate commits, so either can be reverted alone.
+    expect(github.commits).toHaveLength(2);
+    expect(github.commits[0].every((change) => change.text === null)).toBe(true);
+    expect(github.messages[0]).toMatch(/^phone: delete 2 notes in recipes\n/);
+    expect(store.notes.has("recipes/a.md")).toBe(false);
+    expect(store.notes.get("inbox/c.md")?.dirty).toBe(false);
+  });
+
+  it("brings a note back if it changed elsewhere after being deleted here", async () => {
+    const { github, store } = await setup({ "a.md": "old" });
+    await markDeleted(store, "a.md");
+    await github.set("a.md", "changed on the Mac");
+    const result = await syncNotes(github, store, undefined, NOW);
+    expect(result.keptDeletes).toEqual(["a.md"]);
+    expect(github.files.get("a.md")).toBe("changed on the Mac");
+    expect(store.notes.get("a.md")).toMatchObject({ text: "changed on the Mac", dirty: false });
+    expect(store.notes.get("a.md")?.deleted).toBeFalsy();
+    expect(github.commits).toHaveLength(0);
+  });
+
+  it("forgets a deletion when the note is already gone from GitHub", async () => {
+    const { github, store } = await setup({ "a.md": "A" });
+    await markDeleted(store, "a.md");
+    github.remove("a.md");
+    await syncNotes(github, store, undefined, NOW);
+    expect(store.notes.has("a.md")).toBe(false);
+    expect(github.commits).toHaveLength(0);
+  });
+
+  it("never pushes a new note that was deleted before it synced", async () => {
+    const { github, store } = await setup({});
+    await edit(store, "inbox/draft.md", "half a thought");
+    await markDeleted(store, "inbox/draft.md");
+    await syncNotes(github, store, undefined, NOW);
+    expect(store.notes.has("inbox/draft.md")).toBe(false);
+    expect(github.commits).toHaveLength(0);
+  });
+
+  it("keeps a deletion waiting while offline, then pushes it", async () => {
+    const { github, store } = await setup({ "a.md": "A" });
+    await markDeleted(store, "a.md");
+    expect(store.notes.get("a.md")).toMatchObject({ deleted: true, dirty: true });
+    await syncNotes(github, store, undefined, NOW);
+    expect(github.files.has("a.md")).toBe(false);
+  });
+
+  it("names the folder and lists every file in the commit message", () => {
+    expect(deletionMessage(["recipes/b.md", "recipes/a.md"])).toBe(
+      "phone: delete 2 notes in recipes\n\n- recipes/a.md\n- recipes/b.md\n\nUndo with git revert on this commit.",
+    );
+    expect(deletionMessage(["a/x.md", "b/y.md"]).split("\n")[0]).toBe("phone: delete 2 notes");
+    expect(deletionMessage(["diary/daily/2026/x.md"]).split("\n")[0]).toBe("phone: delete 1 note in diary/daily/2026");
   });
 });
 

@@ -18,7 +18,8 @@ export interface RemoteTree {
 
 export interface FileChange {
   path: string;
-  text: string;
+  /** Null deletes the file. */
+  text: string | null;
 }
 
 export interface GitHubApi {
@@ -157,12 +158,12 @@ export function createGitHub(config: RepoConfig, fetchFn: typeof fetch = fetch.b
         method: "POST",
         body: JSON.stringify({
           base_tree: base.treeSha,
-          tree: changes.map((change) => ({
-            path: prefix + change.path,
-            mode: "100644",
-            type: "blob",
-            content: change.text,
-          })),
+          tree: changes.map((change) =>
+            change.text === null
+              ? // A null SHA is how the trees API removes a path.
+                { path: prefix + change.path, mode: "100644", type: "blob", sha: null }
+              : { path: prefix + change.path, mode: "100644", type: "blob", content: change.text },
+          ),
         }),
       });
       const commit = await request<{ sha: string }>("/git/commits", {

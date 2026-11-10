@@ -94,7 +94,8 @@ function Connected({
   onReplaceKey: (token: string) => void;
   onDisconnect: () => void;
 }) {
-  const { notes, loaded, status, edit, syncNow, conflicts, clearConflicts } = useSync(config, store);
+  const { notes, pendingDeletes, remove, loaded, status, edit, syncNow, conflicts, keptDeletes, clearConflicts } =
+    useSync(config, store);
   const [screen, setScreen] = useState<Screen>({ name: "home" });
   const [tab, setTab] = useState<Tab>("library");
   const [folder, setFolder] = useState("");
@@ -126,12 +127,22 @@ function Connected({
 
   if (!loaded) return null;
 
-  const notice = conflicts.length > 0 && (
+  const nameOf = (path: string) => noteName(path, notes.find((note) => note.path === path)?.text);
+  const notice = (conflicts.length > 0 || keptDeletes.length > 0) && (
     <div className="notice" role="alert">
-      <p>
-        {conflicts.map((c) => noteName(c.path, notes.find((note) => note.path === c.path)?.text)).join(", ")} also changed elsewhere. Both versions are
-        kept, and your phone's is listed on the home screen.
-      </p>
+      {conflicts.length > 0 && (
+        <p>
+          {conflicts.map((c) => nameOf(c.path)).join(", ")} also changed elsewhere. Both versions are kept, and
+          your phone's is listed on the home screen.
+        </p>
+      )}
+      {keptDeletes.length > 0 && (
+        <p>
+          {keptDeletes.map(nameOf).join(", ")} changed on another device after you deleted{" "}
+          {keptDeletes.length === 1 ? "it" : "them"} here, so {keptDeletes.length === 1 ? "it was" : "they were"}{" "}
+          kept.
+        </p>
+      )}
       <button type="button" className="tool" aria-label="Dismiss" onClick={clearConflicts}>
         <CloseIcon />
       </button>
@@ -163,6 +174,10 @@ function Connected({
           readStored={readStored}
           onSave={save}
           onBack={goHome}
+          onDelete={async () => {
+            await remove([screen.path]);
+            goHome();
+          }}
           autoFocus={!record}
         />
       </>
@@ -199,6 +214,8 @@ function Connected({
         onQuery={setQuery}
         onOpen={(path) => openNote(path)}
         recent={recent}
+        pendingDeletes={pendingDeletes}
+        onDeleteFolder={(paths) => void remove(paths)}
         onWrite={openDraft}
         onCreate={(path) => openDraft(path, `# ${noteTitle(path)}\n\n`)}
         onSync={() => void syncNow()}

@@ -8,6 +8,9 @@ const DOWNLOAD_CONCURRENCY = 6;
 export interface SyncResult {
   downloaded: number;
   pushed: number;
+  deleted: number;
+  /** Deleted on the phone but changed elsewhere first, so brought back instead. */
+  keptDeletes: string[];
   /** Paths where both sides changed, with where the phone's version was saved. */
   conflicts: { path: string; copy: string }[];
 }
@@ -37,7 +40,7 @@ export async function syncNotes(
   onProgress: SyncProgress = () => {},
   now: () => Date = () => new Date(),
 ): Promise<SyncResult> {
-  const result: SyncResult = { downloaded: 0, pushed: 0, conflicts: [] };
+  const result: SyncResult = { downloaded: 0, pushed: 0, deleted: 0, keptDeletes: [], conflicts: [] };
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
     const remote = await api.getTree();
     await pull(api, store, remote, result, onProgress, now);
@@ -63,10 +66,15 @@ async function pull(
   const locals = new Map((await store.all()).map((note) => [note.path, note]));
   const downloads: { path: string; sha: string; seenRev: number }[] = [];
   const conflicts: { note: NoteRecord; sha: string }[] = [];
+  const restores: { note: NoteRecord; sha: string }[] = [];
 
   for (const [path, sha] of remote.files) {
     const local = locals.get(path);
-    if (!local) {
+    if (local?.deleted) {
+      // Unchanged since it was deleted, so push leaves it to push. Otherwise the
+      // deletion was of a version that's gone, so the newer one comes back.
+      if (local.baseSha !== sha) restores.push({ note: local, sha });
+    } else if (!local) {
       downloads.push({ path, sha, seenRev: 0 });
     } else if (!local.dirty) {
       if (local.baseSha !== sha) downloads.push({ path, sha, seenRev: local.rev });
@@ -79,9 +87,10 @@ async function pull(
   }
 
   for (const local of locals.values()) {
-    if (!local.dirty && !remote.files.has(local.path)) {
+    // Gone from GitHub too, whether deleted there or never pushed: nothing left to do.
+    if ((!local.dirty || local.deleted) && !remote.files.has(local.path)) {
       await store.update(local.path, (current) =>
-        current && !current.dirty && current.rev === local.rev ? null : undefined,
+        current && (!current.dirty || current.deleted) && current.rev === local.rev ? null : undefined,
       );
     }
   }
@@ -115,6 +124,17 @@ async function pull(
         for (let next = queue.shift(); next; next = queue.shift()) await save(next, await api.getText(next.sha));
       }),
     );
+  }
+
+  for (const { note, sha } of restores) {
+    const text = await api.getText(sha);
+    if (text === null) continue;
+    await store.update(note.path, (current) =>
+      current?.rev === note.rev
+        ? { path: note.path, text, baseSha: sha, dirty: false, rev: note.rev, updatedAt: note.updatedAt }
+        : undefined,
+    );
+    result.keptDeletes.push(note.path);
   }
 
   for (const { note, sha } of conflicts) {
@@ -156,7 +176,25 @@ async function push(
   result: SyncResult,
 ): Promise<boolean> {
   const dirty = (await store.all()).filter((note) => note.dirty);
+
+  // Deletions go in a commit of their own, so one revert undoes exactly them.
+  const deletions = dirty.filter((note) => note.deleted && note.baseSha !== null && remote.files.get(note.path) === note.baseSha);
+  if (deletions.length > 0) {
+    await api.commit(
+      remote,
+      deletions.map(({ path }) => ({ path, text: null })),
+      deletionMessage(deletions.map(({ path }) => path)),
+    );
+    for (const note of deletions) {
+      await store.update(note.path, (current) => (current?.rev === note.rev ? null : undefined));
+    }
+    result.deleted += deletions.length;
+    // Edits wait for the next round, against the tree this commit made.
+    return deletions.length === dirty.length;
+  }
+
   const toPush = dirty.filter((note) => {
+    if (note.deleted) return false;
     const sha = remote.files.get(note.path);
     // Edited after this round looked at it, so the next round works out what to do.
     return sha === undefined || sha === note.baseSha;
@@ -165,6 +203,7 @@ async function push(
   if (toPush.length === 0) return settled;
 
   const changes: FileChange[] = toPush.map(({ path, text }) => ({ path, text }));
+  // A deleted note still waiting is settled by the next pull, not here.
   const noun = changes.length === 1 ? "note" : "notes";
   await api.commit(remote, changes, `phone: update ${changes.length} ${noun}`);
   for (const note of toPush) {
@@ -172,4 +211,17 @@ async function push(
   }
   result.pushed += toPush.length;
   return settled;
+}
+
+/** Says what went and where, and lists every file, so the commit is easy to find and revert. */
+export function deletionMessage(paths: string[]): string {
+  const folders = paths.map((path) => path.split("/").slice(0, -1));
+  const shared: string[] = [];
+  for (let i = 0; folders.every((parts) => i < parts.length && parts[i] === folders[0][i]); i += 1) {
+    shared.push(folders[0][i]);
+  }
+  const noun = paths.length === 1 ? "note" : "notes";
+  const where = shared.length > 0 ? ` in ${shared.join("/")}` : "";
+  const list = [...paths].sort().map((path) => `- ${path}`).join("\n");
+  return `phone: delete ${paths.length} ${noun}${where}\n\n${list}\n\nUndo with git revert on this commit.`;
 }

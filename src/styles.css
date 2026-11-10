@@ -224,6 +224,43 @@ input:focus {
   border: 1px solid var(--danger-line);
 }
 
+/* Destructive, but not the thing you came here for: quiet until it's asked for. */
+.quiet-danger {
+  min-height: 44px;
+  background: transparent;
+  color: var(--danger);
+  border: 0;
+  font: inherit;
+  font-size: 15.5px;
+  opacity: 0.8;
+}
+
+.confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-line);
+  border-radius: 10px;
+  font-size: 15.5px;
+  line-height: 1.45;
+}
+
+.bar + .confirm {
+  margin: 10px 12px 0;
+}
+
+.confirm p {
+  margin: 0;
+}
+
+.confirm-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
 section h2,
 .list-heading {
   margin: 16px 16px 4px;
@@ -516,6 +553,11 @@ section h2,
 
 .bar .tool:first-child {
   margin-left: -6px;
+}
+
+/* Destructive, so it doesn't draw the eye. */
+.tool[aria-label="Delete note"] {
+  color: var(--muted);
 }
 
 .tool:active,

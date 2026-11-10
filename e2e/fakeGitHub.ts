@@ -32,6 +32,8 @@ export class FakeGitHub {
   refuseBatches = false;
   /** Every request answered, as "METHOD /path", to count what a sync cost. */
   requests: string[] = [];
+  /** Every commit message pushed, oldest first. */
+  messages: string[] = [];
 
   constructor(files: Record<string, string>) {
     this.commitFiles(new Map(Object.entries(files)));
@@ -125,12 +127,16 @@ export class FakeGitHub {
     const body = request.postDataJSON() as Record<string, never>;
     if (method === "POST" && path === "/git/trees") {
       const files: Files = new Map(this.trees.get(body.base_tree));
-      for (const item of body.tree as { path: string; content: string }[]) files.set(item.path, item.content);
+      for (const item of body.tree as { path: string; content?: string; sha?: string | null }[]) {
+        if (item.sha === null) files.delete(item.path);
+        else files.set(item.path, item.content!);
+      }
       return reply(201, { sha: this.storeTree(files) });
     }
     if (method === "POST" && path === "/git/commits") {
       const id = sha(`${body.tree}:${body.parents}:${Math.random()}`);
       this.commits.set(id, this.trees.get(body.tree)!);
+      this.messages.push(body.message as string);
       this.parents.set(id, (body.parents as string[])[0]);
       return reply(201, { sha: id });
     }

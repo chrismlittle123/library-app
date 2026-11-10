@@ -51,6 +51,40 @@ test("the diary shortcut writes today's entry with no template, and Templates is
   await expect(button(page, /^Continue today's entry/)).toBeVisible();
 });
 
+test("a note deleted here goes from GitHub in a commit of its own", async ({ page }) => {
+  await connect(page);
+  await openRecipe(page, "Tomato soup");
+  await button(page, "Delete note").click();
+  await button(page, "Cancel").click();
+  await expect(editor(page)).toContainText("Simmer.");
+  await button(page, "Delete note").click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Delete", exact: true }).click();
+  // Back in the folder, and the note is gone from the phone straight away.
+  await expect(button(page, "Roast potatoes")).toBeVisible();
+  await expect(button(page, "Tomato soup")).toHaveCount(0);
+  await expect(synced(page)).toBeVisible();
+  expect(github.read(TOMATO)).toBeUndefined();
+  expect(github.read(POTATO)).toBeDefined();
+  expect(github.messages.at(-1)).toMatch(/^phone: delete 1 note in catalogues\/recipes\n\n- catalogues\/recipes\/tomato-soup\.md/);
+});
+
+test("deleting a folder removes every note in it as one commit", async ({ page }) => {
+  await connect(page);
+  await button(page, /^Catalogues/).click();
+  await button(page, /^Recipes/).click();
+  await button(page, "Delete folder").click();
+  await expect(page.getByRole("alertdialog")).toContainText("Delete all 2 notes in Recipes");
+  await button(page, "Delete 2 notes").click();
+  // Recipes was the only thing in Catalogues, so that empties too.
+  await expect(button(page, /^Recipes/)).toHaveCount(0);
+  await expect(synced(page)).toBeVisible();
+  expect(github.read(TOMATO)).toBeUndefined();
+  expect(github.read(POTATO)).toBeUndefined();
+  expect(github.read("workshop/idea.md")).toBeDefined();
+  const deletes = github.messages.filter((message) => message.startsWith("phone: delete"));
+  expect(deletes).toEqual([expect.stringMatching(/^phone: delete 2 notes in catalogues\/recipes\n/)]);
+});
+
 test("the first download fetches notes in a batch, not one at a time", async ({ page }) => {
   await connect(page);
   expect(github.requests.filter((label) => label === "POST /graphql")).toHaveLength(1);
