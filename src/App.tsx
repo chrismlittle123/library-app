@@ -10,7 +10,7 @@ import type { RepoConfig } from "./sync/github";
 import { openStore, type NoteStore } from "./sync/store";
 import { useSync } from "./useSync";
 import { CloseIcon } from "./icons";
-import { DIARY_TEMPLATE_PATH, diaryPath, fillTemplate, noteName, noteTitle } from "./library";
+import { noteName, noteTitle } from "./library";
 
 /** Fit the app to the space above the keyboard, which iOS doesn't do for us. */
 function useVisualViewport() {
@@ -117,12 +117,6 @@ function Connected({
     openNote(path, notes.some((note) => note.path === path) ? undefined : draft);
   };
 
-  const openToday = () => {
-    const today = new Date();
-    const template = notes.find((note) => note.path === DIARY_TEMPLATE_PATH)?.text ?? "";
-    openDraft(diaryPath(today), fillTemplate(template, today));
-  };
-
   const notePath = screen.name === "note" ? screen.path : null;
   const save = useCallback(
     (text: string, editedFrom: string) => edit(notePath!, text, editedFrom),
@@ -205,7 +199,7 @@ function Connected({
         onQuery={setQuery}
         onOpen={(path) => openNote(path)}
         recent={recent}
-        onToday={openToday}
+        onWrite={openDraft}
         onCreate={(path) => openDraft(path, `# ${noteTitle(path)}\n\n`)}
         onSync={() => void syncNow()}
         onSettings={() => setScreen({ name: "settings" })}

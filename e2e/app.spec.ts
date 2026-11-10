@@ -126,17 +126,20 @@ test("connects, downloads notes, and hides non-notes", async ({ page }) => {
   await expect(page.locator('meta[http-equiv="Content-Security-Policy"]')).toHaveCount(1);
 });
 
-test("today's entry uses the template and reaches GitHub", async ({ page }) => {
+test("a new diary entry covers the days since the last one and reaches GitHub", async ({ page }) => {
   await connect(page);
   const { year, month, iso } = isoToday();
   const mark = `written-${Date.now()}`;
-  await page.getByRole("button", { name: "Today's entry" }).click();
+  await page.getByRole("button", { name: /^(New diary entry|Continue today's entry)/ }).click();
   await typeAtStart(page, `${mark} `);
   await expect(page.getByRole("status")).toHaveText(/Not synced|Saving/);
   await backAndSync(page);
-  const remote = await readRemote(`diary/daily/${year}/${month}/${iso}.md`);
+  // The baseline's last entry is in the past, so this is a range entry ending today.
+  const listing = await fetch(`${API}/diary/weekly/${year}?t=${Date.now()}`, { headers: HEADERS, cache: "no-store" });
+  const names = listing.ok ? ((await listing.json()) as { name: string }[]).map((item) => item.name) : [];
+  const range = names.find((name) => name.endsWith(`_to_${iso}.md`));
+  const remote = await readRemote(range ? `diary/weekly/${year}/${range}` : `diary/daily/${year}/${month}/${iso}.md`);
   expect(remote).toContain(mark);
-  expect(remote).toContain(`# ${iso}`);
 });
 
 test("a new note left empty creates nothing", async ({ page }) => {

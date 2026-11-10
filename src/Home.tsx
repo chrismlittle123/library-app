@@ -3,7 +3,7 @@ import { NoteSearch } from "./search";
 import type { NoteRecord } from "./sync/store";
 import type { SyncStatus } from "./useSync";
 import { BackIcon, SettingsIcon } from "./icons";
-import { displayName, isConflictCopy, listFolder, newNotePath, noteName } from "./library";
+import { displayName, dueMonthlyReview, isConflictCopy, listFolder, newNotePath, nextDiaryEntry, noteName } from "./library";
 
 const RECENT_SHOWN = 4;
 
@@ -15,7 +15,8 @@ interface Props {
   query: string;
   onQuery: (query: string) => void;
   onOpen: (path: string) => void;
-  onToday: () => void;
+  /** Opens a note, starting a new one with `draft` if it doesn't exist yet. */
+  onWrite: (path: string, draft: string) => void;
   onCreate: (path: string) => void;
   onSync: () => void;
   onSettings: () => void;
@@ -39,7 +40,7 @@ function statusLine(status: SyncStatus, unsynced: number): { text: string; state
 }
 
 export function Home(props: Props) {
-  const { notes, status, folder, onFolder, query, onQuery, onOpen, onToday, onCreate, onSync, onSettings, recent } =
+  const { notes, status, folder, onFolder, query, onQuery, onOpen, onWrite, onCreate, onSync, onSettings, recent } =
     props;
   const [naming, setNaming] = useState(false);
   const [name, setName] = useState("");
@@ -54,7 +55,15 @@ export function Home(props: Props) {
     return search.current.search(deferredQuery);
   }, [deferredQuery, notes]);
 
-  const view = useMemo(() => listFolder(notes, folder), [notes, folder]);
+  const view = useMemo(() => {
+    const listed = listFolder(notes, folder);
+    // The shortcuts write entries themselves, so the templates folder is just clutter.
+    if (!folder) listed.folders = listed.folders.filter((item) => item.name !== "templates");
+    return listed;
+  }, [notes, folder]);
+  const paths = useMemo(() => notes.map((note) => note.path), [notes]);
+  const diary = nextDiaryEntry(paths, new Date());
+  const review = dueMonthlyReview(paths, new Date());
   const textOf = useMemo(() => new Map(notes.map((note) => [note.path, note.text])), [notes]);
   const unsynced = useMemo(() => notes.filter((note) => note.dirty), [notes]);
   const conflicts = useMemo(() => notes.filter((note) => isConflictCopy(note.path)), [notes]);
@@ -120,9 +129,17 @@ export function Home(props: Props) {
           <>
             {!folder && (
               <div className="actions">
-                <button type="button" className="primary" onClick={onToday}>
-                  Today's entry
+                <button type="button" className="primary shortcut" onClick={() => onWrite(diary.path, diary.draft)}>
+                  {diary.span === "Today" && notes.some((note) => note.path === diary.path)
+                    ? "Continue today's entry"
+                    : "New diary entry"}
+                  <span className="shortcut-detail">{diary.span}</span>
                 </button>
+                {review && (
+                  <button type="button" className="secondary" onClick={() => onWrite(review.path, "")}>
+                    Write {review.month}'s review
+                  </button>
+                )}
               </div>
             )}
 

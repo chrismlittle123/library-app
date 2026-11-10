@@ -192,6 +192,22 @@ input:focus {
   border: 0;
 }
 
+.shortcut {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  min-height: 60px;
+  line-height: 1.2;
+}
+
+.shortcut-detail {
+  font-size: 14px;
+  font-weight: 400;
+  opacity: 0.75;
+}
+
 .primary:disabled {
   opacity: 0.45;
 }
