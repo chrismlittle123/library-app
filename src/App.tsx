@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { addRecent, loadConfig, loadRecent, saveConfig } from "./config";
+import { addRecent, clearRecent, loadConfig, loadRecent, saveConfig } from "./config";
 import { Editor } from "./Editor";
 import { Home } from "./Home";
 import { Review } from "./review/Review";
@@ -56,6 +56,7 @@ export function App() {
         onDisconnect={() => {
           void store.erase();
           clearCache();
+          clearRecent();
           saveConfig(null);
           setConfig(null);
         }}

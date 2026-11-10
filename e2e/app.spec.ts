@@ -7,6 +7,28 @@ const HEADERS = { Authorization: `Bearer ${token}`, Accept: "application/vnd.git
 
 test.skip(!token, "needs LIBRARY_TEST_TOKEN");
 test.describe.configure({ mode: "serial" });
+
+/**
+ * Puts the throwaway repo back to its `baseline` tag, dropping every commit the
+ * tests made. Run before as well as after, in case a run was stopped halfway.
+ */
+async function resetTestRepo() {
+  // The token can usually write to every repo, so never force-move anything else.
+  if (REPO !== "chrismlittle123/library-app-test") throw new Error(`refusing to reset ${REPO}`);
+  const git = `https://api.github.com/repos/${REPO}/git`;
+  const tag = await fetch(`${git}/ref/tags/baseline`, { headers: HEADERS, cache: "no-store" });
+  expect(tag.ok, "the test repo needs a baseline tag").toBe(true);
+  const { object } = (await tag.json()) as { object: { sha: string } };
+  const reset = await fetch(`${git}/refs/heads/main`, {
+    method: "PATCH",
+    headers: HEADERS,
+    body: JSON.stringify({ sha: object.sha, force: true }),
+  });
+  expect(reset.ok).toBe(true);
+}
+
+test.beforeAll(resetTestRepo);
+test.afterAll(resetTestRepo);
 // The service worker hides requests from the blob cache. The offline test turns it back on.
 test.use({ serviceWorkers: "block" });
 
@@ -167,7 +189,7 @@ test.use({ serviceWorkers: "allow" });
 
 test("writing offline survives a reload and pushes once back online", async ({ page, context }) => {
   await connect(page);
-  await openRecipe(page, "Tomato soup");
+  await openRecipe(page, "Señorío soup");
   const mark = `offline-${Date.now()}`;
   await context.setOffline(true);
   await typeAtStart(page, `${mark} `);
@@ -176,13 +198,13 @@ test("writing offline survives a reload and pushes once back online", async ({ p
   await page.getByRole("button", { name: "Up a folder" }).click();
   await page.getByRole("button", { name: "Up a folder" }).click();
   await expect(page.getByRole("button", { name: /Offline · 1 not synced/ })).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByRole("region", { name: "Not synced" })).toContainText("Tomato soup");
+  await expect(page.getByRole("region", { name: "Not synced" })).toContainText("catalogues/recipes/tomato-soup.md");
   expect(await readRemote("catalogues/recipes/tomato-soup.md")).not.toContain(mark);
 
   // The service worker serves the app, and the note comes back from the phone's storage.
   await page.waitForFunction(() => navigator.serviceWorker.controller !== null, undefined, { timeout: 15_000 });
   await page.reload();
-  await expect(page.getByRole("region", { name: "Not synced" })).toContainText("Tomato soup");
+  await expect(page.getByRole("region", { name: "Not synced" })).toContainText("catalogues/recipes/tomato-soup.md");
 
   await context.setOffline(false);
   await page.evaluate(() => window.dispatchEvent(new Event("online")));
@@ -222,6 +244,12 @@ test("a change on both sides keeps both versions", async ({ page, context }) => 
 
 test("disconnecting erases the phone copy and key", async ({ page }) => {
   await connect(page);
+  // Opening a note puts its name in Recent, which has to go too.
+  await openRecipe(page, "Roast potatoes");
+  await page.getByRole("button", { name: "Back" }).click();
+  await page.getByRole("button", { name: "Up a folder" }).click();
+  await page.getByRole("button", { name: "Up a folder" }).click();
+  await expect(page.getByRole("region", { name: "Recent" })).toContainText("Roast potatoes");
   await page.getByRole("button", { name: "Settings" }).click();
   await page.getByRole("button", { name: "Disconnect this phone" }).click();
   await page.getByRole("button", { name: "Disconnect", exact: true }).click();
@@ -230,8 +258,10 @@ test("disconnecting erases the phone copy and key", async ({ page }) => {
   await expect(page.getByLabel("GitHub key")).toHaveValue("");
   const stored = await page.evaluate(async () => ({
     config: localStorage.getItem("vault:config"),
+    recent: localStorage.getItem("vault:recent"),
     dbs: (await indexedDB.databases()).map((db) => db.name),
   }));
   expect(stored.config).toBeNull();
+  expect(stored.recent).toBeNull();
   expect(stored.dbs).toEqual([]);
 });

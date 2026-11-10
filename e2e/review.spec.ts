@@ -16,7 +16,7 @@ const CORS = {
   "access-control-allow-methods": "GET,POST,OPTIONS",
 };
 
-type Sent = { session_id: string; ts: string; graded: number; again: number; good: number; grades: { id: string; rating: string }[] };
+type Sent = { session_id: string; ts: string; cards_reviewed: number; graded: number; again: number; good: number; grades: { id: string; rating: string }[] };
 
 let github: FakeGitHub;
 let serverUp: boolean;
@@ -102,7 +102,7 @@ test("leaving a review partway logs what was answered", async ({ page }) => {
   await expect(page.getByText("1 / 1 recalled")).toBeVisible();
   await expect(page.getByText("Saved and logged for Sumi")).toBeVisible();
   expect(log).toHaveLength(1);
-  expect(log[0]).toMatchObject({ graded: 1, good: 1 });
+  expect(log[0]).toMatchObject({ graded: 1, good: 1, cards_reviewed: 1 });
   await button(page, "Back").click();
   await expect(page.getByText("1 due")).toBeVisible();
 });
