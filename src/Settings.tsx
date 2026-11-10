@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { BackIcon } from "./icons";
 import { GitHubError, createGitHub, type RepoConfig } from "./sync/github";
 
 interface Props {
@@ -31,7 +32,7 @@ export function Settings({ config, unsynced, onBack, onReplaceKey, onDisconnect 
     <>
       <header className="bar">
         <button type="button" className="tool" aria-label="Back" onClick={onBack}>
-          ‹
+          <BackIcon />
         </button>
         <h1 className="bar-title">Settings</h1>
       </header>

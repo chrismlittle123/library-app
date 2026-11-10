@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { CloseIcon } from "../icons";
+import { prettify } from "../library";
 import { createGitHub, type RepoConfig } from "../sync/github";
 import { publishSession } from "./api";
 import { parseMarkdown, type Line } from "./markdown";
@@ -21,7 +23,7 @@ function shuffle<T>(xs: T[]): T[] {
   return a;
 }
 
-/** `tabs` shows on the start screen only, so a session can't be left by accident. */
+/** `tabs` is hidden during a session, so one can't be left by accident: the × logs it first. */
 export function Review({ config, tabs }: { config: RepoConfig; tabs: ReactNode }) {
   const [cards, setCards] = useState<Card[]>(() => loadDeck() ?? []);
   const [states, setStates] = useState<Record<string, CardState>>(() => loadStates());
@@ -65,6 +67,17 @@ export function Review({ config, tabs }: { config: RepoConfig; tabs: ReactNode }
     [cards, states, now],
   );
 
+  const topics = useMemo(() => {
+    const byTopic = new Map<string, { all: Card[]; due: Card[] }>();
+    for (const card of cards) {
+      const entry = byTopic.get(card.topic) ?? { all: [], due: [] };
+      entry.all.push(card);
+      byTopic.set(card.topic, entry);
+    }
+    for (const card of dueCards) byTopic.get(card.topic)?.due.push(card);
+    return [...byTopic.entries()].sort(([a], [b]) => a.localeCompare(b));
+  }, [cards, dueCards]);
+
   function begin(chosen: Card[]) {
     if (chosen.length === 0) return;
     setQueue(shuffle(chosen));
@@ -96,6 +109,12 @@ export function Review({ config, tabs }: { config: RepoConfig; tabs: ReactNode }
     const synced = await publishSession(rec);
     if (synced) removePending(rec.session_id);
     setSummary({ rec, synced });
+  }
+
+  /** Leave mid-session. Anything already answered counts, so it's logged now. */
+  function exit() {
+    if (grades.length > 0) void finish(record(tally, grades));
+    else setPhase("start");
   }
 
   function answer(rating: Rating) {
@@ -135,8 +154,10 @@ export function Review({ config, tabs }: { config: RepoConfig; tabs: ReactNode }
     return (
       <main className="review">
         <header className="review-bar">
-          <span>{progressLabel(queue, idx, grades)}</span>
-          <span>{queue[idx].topic}</span>
+          <button type="button" className="tool" aria-label="Exit review" onClick={exit}>
+            <CloseIcon />
+          </button>
+          <span className="review-progress">{progressLabel(queue, idx, grades)}</span>
         </header>
         <section
           className="review-card"
@@ -151,8 +172,11 @@ export function Review({ config, tabs }: { config: RepoConfig; tabs: ReactNode }
             }
           }}
         >
-          <p className="review-question">{queue[idx].question}</p>
-          {revealed && <Answer text={queue[idx].answer} />}
+          <span className="review-topic">{prettify(queue[idx].topic)}</span>
+          <div className="review-face">
+            <p className="review-question">{queue[idx].question}</p>
+            {revealed && <Answer text={queue[idx].answer} />}
+          </div>
         </section>
         {revealed ? (
           <div className="review-grades">
@@ -172,59 +196,105 @@ export function Review({ config, tabs }: { config: RepoConfig; tabs: ReactNode }
     );
   }
 
+  const bar = (
+    <header className="bar">
+      <h1 className="bar-title">Flashcards</h1>
+      {cards.length > 0 && <span className="status">{plural(cards.length, "card")}</span>}
+    </header>
+  );
+
   if (phase === "done" && summary) {
     const { rec, synced } = summary;
     return (
-      <main className="review center">
-        <h1 className="review-title">Done</h1>
-        <p className="review-big">
-          {rec.good} / {rec.graded} recalled
-        </p>
-        <p className="hint">
-          {rec.graded} cards · {Math.round(rec.duration_s / 60)} min · {rec.again} to revisit
-        </p>
-        <p className="hint" role="status">
-          {syncMessage(synced)}
-        </p>
-        <button type="button" className="secondary" onClick={() => setPhase("start")}>
-          Back
-        </button>
-      </main>
+      <>
+        {bar}
+        <main className="list">
+          <div className="review-hero">
+            <p className="review-eyebrow">Session done</p>
+            <p className="review-big">
+              {rec.good} / {rec.graded} recalled
+            </p>
+            <p className="hint">
+              {plural(rec.graded, "card")} · {minutes(rec.duration_s)}
+              {rec.again > 0 && ` · ${rec.again} to revisit`}
+            </p>
+            <p className="hint" role="status">
+              {syncMessage(synced)}
+            </p>
+          </div>
+          <div className="actions">
+            <button type="button" className="secondary" onClick={() => setPhase("start")}>
+              Back
+            </button>
+          </div>
+        </main>
+        {tabs}
+      </>
     );
   }
 
   return (
     <>
-      <main className="review center">
-        <h1 className="review-title">Flashcards</h1>
-        {sync === "loading" ? (
-          <p className="hint">Getting your cards…</p>
-        ) : cards.length === 0 ? (
-          <p className="hint">Couldn't load your cards. Check your connection and open this again.</p>
-        ) : dueCards.length > 0 ? (
-          <>
-            <p className="review-big">{dueCards.length} due</p>
-            <p className="hint">this month · {cards.length} cards total</p>
-            <button type="button" className="primary" onClick={() => begin(dueCards)}>
-              Start review
-            </button>
-          </>
-        ) : (
-          <>
-            <p className="review-big">All caught up</p>
-            <p className="hint">nothing due this month · {cards.length} cards total</p>
-            <button type="button" className="secondary" onClick={() => begin(cards)}>
-              Review all anyway
-            </button>
-          </>
-        )}
-        {sync === "offline" && cards.length > 0 && (
-          <p className="hint">Offline: showing the copy saved on this phone.</p>
+      {bar}
+      <main className="list">
+        <div className="review-hero">
+          {sync === "loading" ? (
+            <p className="hint breathe">Getting your cards…</p>
+          ) : cards.length === 0 ? (
+            <p className="hint">Couldn't load your cards. Check your connection and open this again.</p>
+          ) : dueCards.length > 0 ? (
+            <>
+              <p className="review-eyebrow">This month</p>
+              <p className="review-big">{dueCards.length} due</p>
+              <button type="button" className="primary" onClick={() => begin(dueCards)}>
+                Start review
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="review-eyebrow">This month</p>
+              <p className="review-big">All caught up</p>
+              <button type="button" className="secondary" onClick={() => begin(cards)}>
+                Review all anyway
+              </button>
+            </>
+          )}
+          {sync === "offline" && cards.length > 0 && (
+            <p className="hint">Offline: showing the copy saved on this phone.</p>
+          )}
+        </div>
+        {sync !== "loading" && topics.length > 0 && (
+          <section aria-label="Topics">
+            <h2>Topics</h2>
+            <ul className="rows">
+              {topics.map(([topic, { all, due }]) => (
+                <li key={topic}>
+                  <button
+                    type="button"
+                    className="row folder"
+                    onClick={() => begin(due.length > 0 ? due : all)}
+                  >
+                    <span className="row-title">{prettify(topic)}</span>
+                    <span className="row-count" data-due={due.length > 0 || undefined}>
+                      {due.length > 0 ? `${due.length} of ${all.length}` : all.length}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
         )}
       </main>
       {tabs}
     </>
   );
+}
+
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+function minutes(seconds: number): string {
+  const mins = Math.round(seconds / 60);
+  return mins < 1 ? "under a minute" : `${mins} min`;
 }
 
 function syncMessage(synced: boolean | null): string {

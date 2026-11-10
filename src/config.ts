@@ -36,3 +36,22 @@ export const saveConfig = (config: RepoConfig | null) =>
 
 export const loadMode = (): Mode => (read(MODE_KEY) === "styled" ? "styled" : "hidden");
 export const saveMode = (mode: Mode) => write(MODE_KEY, mode);
+
+const RECENT_KEY = "vault:recent";
+const RECENT_LIMIT = 8;
+
+/** Notes opened on this phone, most recent first. */
+export function loadRecent(): string[] {
+  try {
+    const paths: unknown = JSON.parse(read(RECENT_KEY) ?? "[]");
+    return Array.isArray(paths) ? paths.filter((path) => typeof path === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+export function addRecent(path: string): string[] {
+  const next = [path, ...loadRecent().filter((item) => item !== path)].slice(0, RECENT_LIMIT);
+  write(RECENT_KEY, JSON.stringify(next));
+  return next;
+}

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { loadConfig, saveConfig } from "./config";
+import { addRecent, loadConfig, loadRecent, saveConfig } from "./config";
 import { Editor } from "./Editor";
 import { Home } from "./Home";
 import { Review } from "./review/Review";
@@ -9,7 +9,8 @@ import { Setup } from "./Setup";
 import type { RepoConfig } from "./sync/github";
 import { openStore, type NoteStore } from "./sync/store";
 import { useSync } from "./useSync";
-import { DIARY_TEMPLATE_PATH, diaryPath, fillTemplate, noteTitle } from "./library";
+import { CloseIcon } from "./icons";
+import { DIARY_TEMPLATE_PATH, diaryPath, displayName, fillTemplate, noteTitle } from "./library";
 
 /** Fit the app to the space above the keyboard, which iOS doesn't do for us. */
 function useVisualViewport() {
@@ -98,6 +99,12 @@ function Connected({
   const [folder, setFolder] = useState("");
   // Kept here so going back from a search result returns to the results.
   const [query, setQuery] = useState("");
+  const [recent, setRecent] = useState(loadRecent);
+
+  const openNote = (path: string, draft?: string) => {
+    setRecent(addRecent(path));
+    setScreen(draft === undefined ? { name: "note", path } : { name: "note", path, draft });
+  };
 
   const goHome = useCallback(() => {
     setScreen({ name: "home" });
@@ -106,8 +113,7 @@ function Connected({
   }, [syncNow]);
 
   const openDraft = (path: string, draft: string) => {
-    if (notes.some((note) => note.path === path)) setScreen({ name: "note", path });
-    else setScreen({ name: "note", path, draft });
+    openNote(path, notes.some((note) => note.path === path) ? undefined : draft);
   };
 
   const openToday = () => {
@@ -128,11 +134,11 @@ function Connected({
   const notice = conflicts.length > 0 && (
     <div className="notice" role="alert">
       <p>
-        {conflicts.map((c) => noteTitle(c.path)).join(", ")} also changed elsewhere. Both versions are
+        {conflicts.map((c) => displayName(c.path)).join(", ")} also changed elsewhere. Both versions are
         kept, and your phone's is listed on the home screen.
       </p>
       <button type="button" className="tool" aria-label="Dismiss" onClick={clearConflicts}>
-        ×
+        <CloseIcon />
       </button>
     </div>
   );
@@ -196,7 +202,8 @@ function Connected({
         onFolder={setFolder}
         query={query}
         onQuery={setQuery}
-        onOpen={(path) => setScreen({ name: "note", path })}
+        onOpen={(path) => openNote(path)}
+        recent={recent}
         onToday={openToday}
         onCreate={(path) => openDraft(path, `# ${noteTitle(path)}\n\n`)}
         onSync={() => void syncNow()}

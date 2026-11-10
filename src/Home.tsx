@@ -2,7 +2,10 @@ import { useDeferredValue, useMemo, useRef, useState } from "react";
 import { NoteSearch } from "./search";
 import type { NoteRecord } from "./sync/store";
 import type { SyncStatus } from "./useSync";
-import { isConflictCopy, listFolder, newNotePath, noteTitle } from "./library";
+import { BackIcon, SettingsIcon } from "./icons";
+import { displayName, isConflictCopy, listFolder, newNotePath } from "./library";
+
+const RECENT_SHOWN = 4;
 
 interface Props {
   notes: NoteRecord[];
@@ -16,6 +19,8 @@ interface Props {
   onCreate: (path: string) => void;
   onSync: () => void;
   onSettings: () => void;
+  /** Paths of notes opened on this phone, most recent first. */
+  recent: string[];
 }
 
 function statusLine(status: SyncStatus, unsynced: number): { text: string; state: string } {
@@ -34,7 +39,8 @@ function statusLine(status: SyncStatus, unsynced: number): { text: string; state
 }
 
 export function Home(props: Props) {
-  const { notes, status, folder, onFolder, query, onQuery, onOpen, onToday, onCreate, onSync, onSettings } = props;
+  const { notes, status, folder, onFolder, query, onQuery, onOpen, onToday, onCreate, onSync, onSettings, recent } =
+    props;
   const [naming, setNaming] = useState(false);
   const [name, setName] = useState("");
   const deferredQuery = useDeferredValue(query);
@@ -51,6 +57,11 @@ export function Home(props: Props) {
   const view = useMemo(() => listFolder(notes, folder), [notes, folder]);
   const unsynced = useMemo(() => notes.filter((note) => note.dirty), [notes]);
   const conflicts = useMemo(() => notes.filter((note) => isConflictCopy(note.path)), [notes]);
+  const recentNotes = useMemo(() => {
+    const byPath = new Map(notes.map((note) => [note.path, note]));
+    return recent.flatMap((path) => byPath.get(path) ?? []).slice(0, RECENT_SHOWN);
+  }, [notes, recent]);
+  const showRecent = !folder && recentNotes.length > 0;
   const line = statusLine(status, unsynced.length);
   const parent = folder.includes("/") ? folder.slice(0, folder.lastIndexOf("/")) : "";
 
@@ -67,14 +78,14 @@ export function Home(props: Props) {
       <header className="bar">
         {folder ? (
           <button type="button" className="tool" aria-label="Up a folder" onClick={() => onFolder(parent)}>
-            ‹
+            <BackIcon />
           </button>
         ) : (
           <button type="button" className="tool" aria-label="Settings" onClick={onSettings}>
-            ⚙
+            <SettingsIcon />
           </button>
         )}
-        <h1 className="bar-title">{folder ? noteTitle(folder) : "Library"}</h1>
+        <h1 className="bar-title">{folder ? displayName(folder) : "Library"}</h1>
         <button type="button" className="sync-button" data-status={line.state} onClick={onSync}>
           {line.text}
         </button>
@@ -97,7 +108,7 @@ export function Home(props: Props) {
             {hits.map((hit) => (
               <li key={hit.path}>
                 <button type="button" className="row" onClick={() => onOpen(hit.path)}>
-                  <span className="row-title">{hit.title}</span>
+                  <span className="row-title">{displayName(hit.path)}</span>
                   <span className="row-detail">{hit.snippet}</span>
                   <span className="row-path">{hit.path}</span>
                 </button>
@@ -140,11 +151,23 @@ export function Home(props: Props) {
               </section>
             )}
 
+            {showRecent && (
+              <section aria-label="Recent">
+                <h2>Recent</h2>
+                <ul className="rows">
+                  {recentNotes.map((note) => (
+                    <NoteRow key={note.path} note={note} onOpen={onOpen} showFolder />
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            {showRecent && <h2 className="list-heading">Shelves</h2>}
             <ul className="rows">
               {view.folders.map((item) => (
                 <li key={item.path}>
                   <button type="button" className="row folder" onClick={() => onFolder(item.path)}>
-                    <span className="row-title">{item.name}</span>
+                    <span className="row-title">{displayName(item.path)}</span>
                     <span className="row-count">{item.count}</span>
                   </button>
                 </li>
@@ -179,7 +202,7 @@ export function Home(props: Props) {
                 </form>
               ) : (
                 <button type="button" className="secondary" onClick={() => setNaming(true)}>
-                  New note in {folder ? noteTitle(folder) : "inbox"}
+                  New note in {folder ? displayName(folder) : "Inbox"}
                 </button>
               )}
             </div>
@@ -194,19 +217,24 @@ function NoteRow({
   note,
   onOpen,
   showPath = false,
+  showFolder = false,
 }: {
   note: NoteRecord;
   onOpen: (path: string) => void;
   showPath?: boolean;
+  /** Where the note lives, for a list that mixes folders. */
+  showFolder?: boolean;
 }) {
+  const parent = note.path.includes("/") ? note.path.slice(0, note.path.lastIndexOf("/")) : "";
   return (
     <li>
       <button type="button" className="row" onClick={() => onOpen(note.path)}>
         <span className="row-title">
-          {noteTitle(note.path)}
+          {displayName(note.path)}
           {note.dirty && <span className="dot" aria-label="Not synced" />}
         </span>
         {showPath && <span className="row-path">{note.path}</span>}
+        {showFolder && parent && <span className="row-path">{displayName(parent.split("/")[0])}</span>}
       </button>
     </li>
   );

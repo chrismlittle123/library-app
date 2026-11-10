@@ -8,6 +8,7 @@ import {
   EditorView,
   ViewPlugin,
   type ViewUpdate,
+  WidgetType,
   keymap,
 } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
@@ -15,10 +16,10 @@ import { tags } from "@lezer/highlight";
 export type Mode = "styled" | "hidden";
 
 const highlight = HighlightStyle.define([
-  { tag: tags.heading1, fontSize: "1.45em", fontWeight: "700" },
-  { tag: tags.heading2, fontSize: "1.25em", fontWeight: "700" },
-  { tag: tags.heading3, fontSize: "1.1em", fontWeight: "700" },
-  { tag: tags.strong, fontWeight: "700" },
+  { tag: tags.heading1, fontSize: "1.5em", fontWeight: "500", lineHeight: "1.25" },
+  { tag: tags.heading2, fontSize: "1.2em", fontWeight: "600", color: "var(--accent)" },
+  { tag: tags.heading3, fontSize: "1.05em", fontWeight: "600" },
+  { tag: tags.strong, fontWeight: "600" },
   { tag: tags.emphasis, fontStyle: "italic" },
   { tag: tags.strikethrough, textDecoration: "line-through" },
   { tag: tags.monospace, fontFamily: "ui-monospace, Menlo, monospace", fontSize: "0.9em" },
@@ -29,8 +30,48 @@ const highlight = HighlightStyle.define([
   { tag: tags.contentSeparator, color: "var(--muted)" },
 ]);
 
-const MARKS = new Set(["HeaderMark", "EmphasisMark", "StrikethroughMark", "CodeMark"]);
+const MARKS = new Set([
+  "HeaderMark",
+  "EmphasisMark",
+  "StrikethroughMark",
+  "CodeMark",
+  "QuoteMark",
+  "ListMark",
+  "TaskMarker",
+]);
 const hide = Decoration.replace({});
+
+class BulletWidget extends WidgetType {
+  toDOM() {
+    const dot = document.createElement("span");
+    dot.className = "cm-bullet";
+    dot.textContent = "•";
+    return dot;
+  }
+  eq() {
+    return true;
+  }
+}
+const bullet = Decoration.replace({ widget: new BulletWidget() });
+
+class BoxWidget extends WidgetType {
+  constructor(readonly done: boolean) {
+    super();
+  }
+  toDOM() {
+    const box = document.createElement("span");
+    box.className = this.done ? "cm-box cm-box-done" : "cm-box";
+    return box;
+  }
+  eq(other: BoxWidget) {
+    return other.done === this.done;
+  }
+}
+const boxes = {
+  open: Decoration.replace({ widget: new BoxWidget(false) }),
+  done: Decoration.replace({ widget: new BoxWidget(true) }),
+};
+const quoteLine = Decoration.line({ class: "cm-quote" });
 
 /** Hide markdown symbols, except on the lines being edited. */
 function hiddenMarks(view: EditorView): DecorationSet {
@@ -51,8 +92,22 @@ function hiddenMarks(view: EditorView): DecorationSet {
         if (!MARKS.has(node.name)) return;
         const line = view.state.doc.lineAt(node.from);
         if (active.has(line.number)) return;
-        // A heading's # is followed by a space, which goes with it.
-        const end = node.name === "HeaderMark" ? Math.min(node.to + 1, line.to) : node.to;
+        const mark = view.state.doc.sliceString(node.from, node.to);
+        if (node.name === "TaskMarker") {
+          marks.push((/x/i.test(mark) ? boxes.done : boxes.open).range(node.from, node.to));
+          return;
+        }
+        if (node.name === "ListMark") {
+          // Numbers stay. A dash becomes a bullet, or goes if a checkbox follows it.
+          if (!/^[-*+]$/.test(mark)) return;
+          const task = /^\s?\[[ xX]\]/.test(view.state.doc.sliceString(node.to, line.to));
+          if (task) marks.push(hide.range(node.from, Math.min(node.to + 1, line.to)));
+          else marks.push(bullet.range(node.from, node.to));
+          return;
+        }
+        // A heading's # and a quote's > are followed by a space, which goes with them.
+        const spaced = node.name === "HeaderMark" || node.name === "QuoteMark";
+        const end = spaced ? Math.min(node.to + 1, line.to) : node.to;
         if (end > node.from) marks.push(hide.range(node.from, end));
       },
     });
@@ -70,6 +125,40 @@ const hideMarks = ViewPlugin.fromClass(
       if (update.docChanged || update.selectionSet || update.viewportChanged || update.focusChanged) {
         this.decorations = hiddenMarks(update.view);
       }
+    }
+  },
+  { decorations: (plugin) => plugin.decorations },
+);
+
+/** Quotes are set off with a rule in both modes, so they read as quotes while being typed. */
+function quoteLines(view: EditorView): DecorationSet {
+  const lines: Range<Decoration>[] = [];
+  for (const { from, to } of view.visibleRanges) {
+    syntaxTree(view.state).iterate({
+      from,
+      to,
+      enter(node) {
+        if (node.name !== "Blockquote") return;
+        for (let pos = node.from; pos <= node.to; ) {
+          const line = view.state.doc.lineAt(pos);
+          lines.push(quoteLine.range(line.from));
+          pos = line.to + 1;
+        }
+        return false;
+      },
+    });
+  }
+  return Decoration.set(lines, true);
+}
+
+const quotes = ViewPlugin.fromClass(
+  class {
+    decorations: DecorationSet;
+    constructor(view: EditorView) {
+      this.decorations = quoteLines(view);
+    }
+    update(update: ViewUpdate) {
+      if (update.docChanged || update.viewportChanged) this.decorations = quoteLines(update.view);
     }
   },
   { decorations: (plugin) => plugin.decorations },
@@ -96,6 +185,7 @@ export function createEditorState(
       // Includes Enter continuing lists and checkboxes.
       markdown({ base: markdownLanguage }),
       syntaxHighlighting(highlight),
+      quotes,
       modeCompartment.of(modeExtension(mode)),
       EditorState.readOnly.of(readOnly),
       EditorView.editable.of(!readOnly),

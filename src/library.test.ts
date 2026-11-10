@@ -2,12 +2,14 @@ import { NoteSearch, fold } from "./search";
 import type { NoteRecord } from "./sync/store";
 import {
   diaryPath,
+  displayName,
   fillTemplate,
   isConflictCopy,
   isGenerated,
   listFolder,
   newNotePath,
   noteTitle,
+  prettify,
 } from "./library";
 
 function note(path: string, text = "", dirty = false): NoteRecord {
@@ -117,5 +119,25 @@ describe("NoteSearch", () => {
     index.sync([note("b.md", "keep")]);
     expect(index.search("new")).toEqual([]);
     expect(index.search("keep")).toHaveLength(1);
+  });
+});
+
+describe("display names", () => {
+  it("reads a filename as words", () => {
+    expect(prettify("roast-potatoes")).toBe("Roast potatoes");
+    expect(prettify("economic_history")).toBe("Economic history");
+    expect(prettify("iPhone-notes")).toBe("iPhone notes");
+  });
+
+  it("reads diary dates and month folders as dates", () => {
+    expect(displayName("diary/daily/2026/11/2026-11-10.md")).toBe("Tuesday 10 November 2026");
+    expect(displayName("diary/daily/2026/11")).toBe("November");
+    expect(displayName("diary/daily/2026")).toBe("2026");
+  });
+
+  it("keeps the date in a conflict copy's name", () => {
+    expect(displayName("recipes/roast-potatoes (phone conflict 2026-11-10 0930).md")).toBe(
+      "Roast potatoes (phone conflict 2026-11-10 0930)",
+    );
   });
 });

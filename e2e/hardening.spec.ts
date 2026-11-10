@@ -35,8 +35,8 @@ async function connect(page: Page) {
 }
 
 async function openRecipe(page: Page, title: string) {
-  await button(page, /^catalogues/).click();
-  await button(page, /^recipes/).click();
+  await button(page, /^Catalogues/).click();
+  await button(page, /^Recipes/).click();
   await button(page, title).click();
 }
 
@@ -62,7 +62,7 @@ function gate() {
 
 test("writing in a new note starts below its heading", async ({ page }) => {
   await connect(page);
-  await button(page, /^workshop/).click();
+  await button(page, /^Workshop/).click();
   await button(page, /New note/).click();
   await page.getByLabel("Note name").fill("fresh");
   await button(page, "Create").click();
@@ -74,12 +74,12 @@ test("writing in a new note starts below its heading", async ({ page }) => {
 
 test("typing while a change from elsewhere arrives keeps both", async ({ page, context }) => {
   await connect(page);
-  await openRecipe(page, "tomato-soup");
+  await openRecipe(page, "Tomato soup");
   await context.setOffline(true);
   await typeAtStart(page, "other edit ");
   await expect(status(page)).toHaveText("Not synced");
   await button(page, "Back").click();
-  await button(page, "roast-potatoes").click();
+  await button(page, "Roast potatoes").click();
   github.write(POTATO, "# Roast potatoes\n\nfrom the mac\n");
 
   // A slow push keeps the sync running after it has stored the Mac's change.
@@ -108,7 +108,7 @@ test("typing while a change from elsewhere arrives keeps both", async ({ page, c
 
 test("undo can't take back a change from elsewhere", async ({ page }) => {
   await connect(page);
-  await openRecipe(page, "roast-potatoes");
+  await openRecipe(page, "Roast potatoes");
   github.write(POTATO, "# Roast potatoes\n\nfrom the mac\n");
   await online(page);
   await expect(editor(page)).toContainText("from the mac");
@@ -128,7 +128,7 @@ test("a request that never answers doesn't stop sync for good", async ({ page })
   await page.waitForTimeout(500);
   github.write(POTATO, "# Roast potatoes\n\nfrom the mac\n");
   await online(page);
-  await openRecipe(page, "roast-potatoes");
+  await openRecipe(page, "Roast potatoes");
   await expect(editor(page)).toContainText("from the mac", { timeout: 45_000 });
 });
 
@@ -152,7 +152,7 @@ const setStorageDown = (page: Page, down: boolean) =>
 test("a connection iOS dropped silently is reopened", async ({ page }) => {
   await page.addInitScript(BREAKABLE_STORAGE);
   await connect(page);
-  await openRecipe(page, "tomato-soup");
+  await openRecipe(page, "Tomato soup");
   await page.evaluate(() => (window as unknown as { dropConnections: () => void }).dropConnections());
   await typeAtStart(page, "after the drop ");
   await expect(status(page)).toHaveText("Not synced");
@@ -170,14 +170,14 @@ test("sync carries on after storage fails during a run", async ({ page }) => {
   await setStorageDown(page, false);
   github.write(POTATO, "# Roast potatoes\n\nfrom the mac\n");
   await online(page);
-  await openRecipe(page, "roast-potatoes");
+  await openRecipe(page, "Roast potatoes");
   await expect(editor(page)).toContainText("from the mac", { timeout: 10_000 });
 });
 
 test("back won't leave a note it couldn't save", async ({ page }) => {
   await page.addInitScript(BREAKABLE_STORAGE);
   await connect(page);
-  await openRecipe(page, "tomato-soup");
+  await openRecipe(page, "Tomato soup");
   await setStorageDown(page, true);
   await typeAtStart(page, "precious words ");
   await expect(status(page)).toHaveText("Couldn't save");
@@ -187,13 +187,13 @@ test("back won't leave a note it couldn't save", async ({ page }) => {
 
   await setStorageDown(page, false);
   await button(page, "Back").click();
-  await button(page, "tomato-soup").click();
+  await button(page, "Tomato soup").click();
   await expect(editor(page)).toContainText("precious words");
 });
 
 test("an expired key can be replaced without losing unsynced writing", async ({ page, context }) => {
   await connect(page);
-  await openRecipe(page, "tomato-soup");
+  await openRecipe(page, "Tomato soup");
   await context.setOffline(true);
   await typeAtStart(page, "written offline ");
   await expect(status(page)).toHaveText("Not synced");
