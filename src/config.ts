@@ -50,6 +50,8 @@ export function loadRecent(): string[] {
   }
 }
 
+export const clearRecent = () => write(RECENT_KEY, null);
+
 export function addRecent(path: string): string[] {
   const next = [path, ...loadRecent().filter((item) => item !== path)].slice(0, RECENT_LIMIT);
   write(RECENT_KEY, JSON.stringify(next));

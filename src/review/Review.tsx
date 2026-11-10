@@ -4,7 +4,7 @@ import { prettify } from "../library";
 import { createGitHub, type RepoConfig } from "../sync/github";
 import { publishSession } from "./api";
 import { parseMarkdown, type Line } from "./markdown";
-import { isFirstAnswer, progressLabel, requeue, uniqueCards } from "./session";
+import { isFirstAnswer, progressLabel, requeue } from "./session";
 import { grade, isDue, newState, yearMonth } from "./sr";
 import { loadDeck, loadStates, removePending, saveDeck, saveStates, upsertPending } from "./storage";
 import { syncReview } from "./sync";
@@ -94,7 +94,8 @@ export function Review({ config, tabs }: { config: RepoConfig; tabs: ReactNode }
     return {
       session_id: sessionId,
       ts: new Date().toISOString(),
-      cards_reviewed: uniqueCards(queue),
+      // Each card is graded once, on its first answer, so this is right for a session left early too.
+      cards_reviewed: g.length,
       graded: t.graded,
       again: t.again,
       good: t.good,
