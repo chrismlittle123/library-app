@@ -192,6 +192,8 @@ test("writing offline survives a reload and pushes once back online", async ({ p
 });
 
 test("a change on both sides keeps both versions", async ({ page, context }) => {
+  // The list names a note by its heading, so start from a known one.
+  await writeRemote("workshop/ideas/the-log.md", "# The log\n\nStart.\n");
   await connect(page);
   await page.getByRole("button", { name: /^Workshop/ }).click();
   await page.getByRole("button", { name: /^Ideas/ }).click();
@@ -201,7 +203,7 @@ test("a change on both sides keeps both versions", async ({ page, context }) => 
   await typeAtStart(page, `${phone} `);
   await expect(page.getByRole("status")).toHaveText("Not synced");
   const mac = `mac-${Date.now()}`;
-  await writeRemote("workshop/ideas/the-log.md", `# An idea\n\n${mac}\n`);
+  await writeRemote("workshop/ideas/the-log.md", `# The log\n\n${mac}\n`);
   await context.setOffline(false);
   await page.evaluate(() => window.dispatchEvent(new Event("online")));
 
