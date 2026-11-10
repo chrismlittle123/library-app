@@ -27,6 +27,12 @@ export const CloseIcon = () => (
   </Icon>
 );
 
+export const TrashIcon = () => (
+  <Icon>
+    <path d="M4.5 7h15M10 7V4.8h4V7M6.5 7l.9 12.2h9.2L17.5 7M10.2 10.5v5.5M13.8 10.5v5.5" />
+  </Icon>
+);
+
 export const SettingsIcon = () => (
   <Icon>
     <path d="M4 7h10M18 7h2M4 17h4M12 17h8" />

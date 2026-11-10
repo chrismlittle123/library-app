@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { syncNotes, type SyncResult } from "./sync/engine";
 import { GitHubError, createGitHub, type RepoConfig } from "./sync/github";
-import { saveEdit, type NoteRecord, type NoteStore } from "./sync/store";
+import { markDeleted, saveEdit, type NoteRecord, type NoteStore } from "./sync/store";
 
 // Long enough that pauses while writing don't each become a commit.
 const PUSH_AFTER_EDIT_MS = 10_000;
@@ -14,7 +14,8 @@ export interface SyncStatus {
 }
 
 export function useSync(config: RepoConfig, store: NoteStore) {
-  const [notes, setNotes] = useState<NoteRecord[]>([]);
+  // Includes notes deleted here but not yet on GitHub, which the app never shows.
+  const [stored, setNotes] = useState<NoteRecord[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [status, setStatus] = useState<SyncStatus>({
     running: false,
@@ -40,7 +41,7 @@ export function useSync(config: RepoConfig, store: NoteStore) {
         const result = await syncNotes(createGitHub(config), store, (done, total) => {
           setStatus((s) => ({ ...s, progress: { done, total } }));
         });
-        if (result.conflicts.length > 0) setLastResult(result);
+        if (result.conflicts.length > 0 || result.keptDeletes.length > 0) setLastResult(result);
         setStatus((s) => ({ ...s, error: null }));
       } catch (error) {
         const failure =
@@ -99,13 +100,30 @@ export function useSync(config: RepoConfig, store: NoteStore) {
     [run, store],
   );
 
+  /** Deletes notes here at once, and from GitHub on the next sync, as one commit. */
+  const remove = useCallback(
+    async (paths: string[]) => {
+      for (const path of paths) await markDeleted(store, path);
+      setNotes(await store.all());
+      // Unlike typing, there's nothing more coming, so no reason to wait.
+      void run();
+    },
+    [run, store],
+  );
+
+  const notes = useMemo(() => stored.filter((note) => !note.deleted), [stored]);
+  const pendingDeletes = stored.length - notes.length;
+
   return {
     notes,
+    pendingDeletes,
+    remove,
     loaded,
     status,
     edit,
     syncNow: run,
     conflicts: lastResult?.conflicts ?? [],
+    keptDeletes: lastResult?.keptDeletes ?? [],
     clearConflicts: () => setLastResult(null),
   };
 }

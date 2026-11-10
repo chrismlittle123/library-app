@@ -8,6 +8,11 @@ export interface NoteRecord {
   /** Goes up on every edit, so sync can tell if a note changed under it. */
   rev: number;
   updatedAt: number;
+  /**
+   * Deleted on the phone. Kept, and dirty, until GitHub confirms the deletion,
+   * so it can be pushed, or brought back if the note changed elsewhere first.
+   */
+  deleted?: boolean;
 }
 
 export interface NoteStore {
@@ -119,6 +124,13 @@ export function openStore(owner: string, repo: string): NoteStore {
  * since, the edit didn't see that change, so it loses its base and the next sync
  * keeps both versions rather than pushing over the change.
  */
+/** Mark a note deleted. Sync removes it from GitHub, as a commit of its own. */
+export function markDeleted(store: NoteStore, path: string): Promise<void> {
+  return store.update(path, (current) =>
+    current ? { ...current, deleted: true, dirty: true, rev: current.rev + 1, updatedAt: Date.now() } : undefined,
+  );
+}
+
 export function saveEdit(store: NoteStore, path: string, text: string, editedFrom: string): Promise<void> {
   return store.update(path, (current) => ({
     path,

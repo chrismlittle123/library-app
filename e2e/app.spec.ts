@@ -245,6 +245,23 @@ test("a change on both sides keeps both versions", async ({ page, context }) => 
   await expect(editor(page)).toContainText(phone);
 });
 
+test("a deleted note leaves GitHub in a commit that names it", async ({ page }) => {
+  // Its own note, so deleting it can't affect the other tests.
+  const name = `doomed-${Date.now()}`;
+  await writeRemote(`workshop/${name}.md`, `# ${name}\n`);
+  await connect(page);
+  await page.getByRole("button", { name: /^Workshop/ }).click();
+  await page.getByRole("button", { name, exact: true }).click();
+  await page.getByRole("button", { name: "Delete note" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Synced", exact: true })).toBeVisible({ timeout: 30_000 });
+  expect(await readRemote(`workshop/${name}.md`)).toBeNull();
+  const commits = await fetch(`https://api.github.com/repos/${REPO}/commits?per_page=1`, { headers: HEADERS, cache: "no-store" });
+  const [head] = (await commits.json()) as { commit: { message: string } }[];
+  expect(head.commit.message).toContain("phone: delete 1 note in workshop");
+  expect(head.commit.message).toContain(`- workshop/${name}.md`);
+});
+
 test("disconnecting erases the phone copy and key", async ({ page }) => {
   await connect(page);
   // Opening a note puts its name in Recent, which has to go too.
