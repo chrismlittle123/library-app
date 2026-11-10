@@ -2,8 +2,9 @@ import { NoteSearch, fold } from "./search";
 import type { NoteRecord } from "./sync/store";
 import {
   diaryPath,
+  dueMonthlyReview,
+  nextDiaryEntry,
   displayName,
-  fillTemplate,
   isConflictCopy,
   isGenerated,
   listFolder,
@@ -24,9 +25,6 @@ describe("library paths", () => {
     expect(diaryPath(date)).toBe("diary/daily/2026/01/2026-01-05.md");
   });
 
-  it("fills the Obsidian date placeholder", () => {
-    expect(fillTemplate("# {{date:YYYY-MM-DD}}\n", date)).toBe("# 2026-01-05\n");
-  });
 
   it("makes a safe new note path", () => {
     expect(newNotePath("inbox", "  a/b: idea.md ")).toBe("inbox/a b idea.md");
@@ -155,5 +153,57 @@ describe("note names", () => {
     expect(noteName("diary/daily/2026/11/2026-11-10.md", "# 2026-11-10\n")).toBe("Tuesday 10 November 2026");
     expect(noteName("templates/daily.md", "# {{date:YYYY-MM-DD}}\n")).toBe("Daily");
     expect(noteName("inbox/new.md", undefined)).toBe("New");
+  });
+});
+
+describe("diary shortcuts", () => {
+  const today = new Date(2026, 10, 10);
+
+  it("covers everything since the last entry in one range entry", () => {
+    const entry = nextDiaryEntry(
+      ["diary/daily/2026/10/2026-10-20.md", "diary/daily/2026/10/2026-10-25.md", "inbox/x.md"],
+      today,
+    );
+    expect(entry).toEqual({
+      path: "diary/weekly/2026/2026-10-26_to_2026-11-10.md",
+      draft: "# 26/10-10/11\n\n",
+      span: "26 Oct – 10 Nov",
+    });
+  });
+
+  it("counts a range entry's end as the last entry", () => {
+    const entry = nextDiaryEntry(["diary/daily/2026/10/2026-10-25.md", "diary/weekly/2026/2026-10-26_to_2026-11-05.md"], today);
+    expect(entry.path).toBe("diary/weekly/2026/2026-11-06_to_2026-11-10.md");
+  });
+
+  it("writes today's daily entry when the last one was yesterday", () => {
+    expect(nextDiaryEntry(["diary/daily/2026/11/2026-11-09.md"], today)).toEqual({
+      path: "diary/daily/2026/11/2026-11-10.md",
+      draft: "",
+      span: "Today",
+    });
+  });
+
+  it("reopens an entry that already covers today", () => {
+    expect(nextDiaryEntry(["diary/weekly/2026/2026-11-01_to_2026-11-10.md"], today).path).toBe(
+      "diary/weekly/2026/2026-11-01_to_2026-11-10.md",
+    );
+    expect(nextDiaryEntry(["diary/daily/2026/11/2026-11-10.md"], today).path).toBe("diary/daily/2026/11/2026-11-10.md");
+  });
+
+  it("ignores dates in the future and starts with today when there's nothing", () => {
+    expect(nextDiaryEntry(["diary/daily/2027/01/2027-01-01.md"], today).path).toBe("diary/daily/2026/11/2026-11-10.md");
+  });
+
+  it("crosses a month and a year", () => {
+    const entry = nextDiaryEntry(["diary/daily/2026/12/2026-12-29.md"], new Date(2027, 0, 3));
+    expect(entry.path).toBe("diary/weekly/2027/2026-12-30_to_2027-01-03.md");
+    expect(entry.draft).toBe("# 30/12-03/01\n\n");
+  });
+
+  it("offers last month's review only until it's written", () => {
+    expect(dueMonthlyReview([], today)).toEqual({ path: "diary/monthly/2026/2026-10.md", month: "October" });
+    expect(dueMonthlyReview(["diary/monthly/2026/2026-10.md"], today)).toBeNull();
+    expect(dueMonthlyReview([], new Date(2027, 0, 2))?.path).toBe("diary/monthly/2026/2026-12.md");
   });
 });

@@ -11,10 +11,57 @@ export function diaryPath(date: Date): string {
   return `diary/daily/${date.getFullYear()}/${pad(date.getMonth() + 1)}/${isoDate(date)}.md`;
 }
 
-export const DIARY_TEMPLATE_PATH = "templates/daily.md";
+const DAILY_ENTRY = /^diary\/daily\/\d{4}\/\d{2}\/(\d{4}-\d{2}-\d{2})(?:_[^/]*)?\.md$/;
+const RANGE_ENTRY = /^diary\/weekly\/\d{4}\/(\d{4}-\d{2}-\d{2})_to_(\d{4}-\d{2}-\d{2})\.md$/;
+const SHORT_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-export function fillTemplate(template: string, date: Date): string {
-  return template.replace(/\{\{date(?::YYYY-MM-DD)?\}\}/g, isoDate(date));
+const parseIso = (iso: string) => new Date(Number(iso.slice(0, 4)), Number(iso.slice(5, 7)) - 1, Number(iso.slice(8, 10)));
+const dayMonth = (iso: string) => `${Number(iso.slice(8, 10))} ${SHORT_MONTHS[Number(iso.slice(5, 7)) - 1]}`;
+
+export interface DiaryEntry {
+  path: string;
+  /** What a new file starts with. Ranges carry their dates as a heading; days and months don't. */
+  draft: string;
+  /** The span it covers, for the button: "26 Oct – 10 Nov", or "Today". */
+  span: string;
+}
+
+/**
+ * The next diary entry, following the vault's layout: everything since the last
+ * entry goes in one range entry under weekly/, or today's daily entry if the last
+ * one was yesterday. An entry already covering today is reopened instead.
+ */
+export function nextDiaryEntry(paths: string[], today: Date): DiaryEntry {
+  const todayIso = isoDate(today);
+  let last = "";
+  let lastPath = "";
+  for (const path of paths) {
+    const daily = DAILY_ENTRY.exec(path);
+    const range = RANGE_ENTRY.exec(path);
+    const end = daily?.[1] ?? range?.[2];
+    // A date in the future is a typo, not the last entry.
+    if (end && end <= todayIso && end > last) {
+      last = end;
+      lastPath = path;
+    }
+  }
+  if (last === todayIso) return { path: lastPath, draft: "", span: "Today" };
+  const start = last ? new Date(parseIso(last).getTime() + 36 * 3600 * 1000) : today;
+  const startIso = isoDate(start);
+  if (startIso >= todayIso) return { path: diaryPath(today), draft: "", span: "Today" };
+  const ddmm = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+  return {
+    path: `diary/weekly/${today.getFullYear()}/${startIso}_to_${todayIso}.md`,
+    draft: `# ${ddmm(startIso)}-${ddmm(todayIso)}\n\n`,
+    span: `${dayMonth(startIso)} – ${dayMonth(todayIso)}`,
+  };
+}
+
+/** Last month's review, if it hasn't been written yet. Reviews have no template. */
+export function dueMonthlyReview(paths: string[], today: Date): { path: string; month: string } | null {
+  const month = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+  const path = `diary/monthly/${month.getFullYear()}/${month.getFullYear()}-${pad(month.getMonth() + 1)}.md`;
+  return paths.includes(path) ? null : { path, month: MONTHS[month.getMonth()] };
 }
 
 export function noteTitle(path: string): string {
