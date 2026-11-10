@@ -34,6 +34,22 @@ async function connect(page: Page) {
   await expect(synced(page)).toBeVisible();
 }
 
+test("the first download fetches notes in a batch, not one at a time", async ({ page }) => {
+  await connect(page);
+  expect(github.requests.filter((label) => label === "POST /graphql")).toHaveLength(1);
+  expect(github.requests.filter((label) => label.startsWith("GET /git/blobs/"))).toHaveLength(0);
+  await openRecipe(page, "Roast potatoes");
+  await expect(editor(page)).toContainText("Roast.");
+});
+
+test("notes still arrive one at a time when batches are refused", async ({ page }) => {
+  github.refuseBatches = true;
+  await connect(page);
+  expect(github.requests.filter((label) => label.startsWith("GET /git/blobs/"))).toHaveLength(4);
+  await openRecipe(page, "Roast potatoes");
+  await expect(editor(page)).toContainText("Roast.");
+});
+
 async function openRecipe(page: Page, title: string) {
   await button(page, /^Catalogues/).click();
   await button(page, /^Recipes/).click();

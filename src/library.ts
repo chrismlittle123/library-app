@@ -48,14 +48,18 @@ export function displayName(path: string): string {
   return prettify(name);
 }
 
+/** The heading a note starts with, if it's usable as its name. */
+export function leadingHeading(text: string | undefined): string | null {
+  const body = (text ?? "").replace(/^---\n[\s\S]*?\n---\n/, "").trimStart();
+  const title = /^# +(.+?)\s*#*\s*$/m.exec(body.split("\n", 1)[0])?.[1].trim();
+  // A template's placeholder or a date reads better from the path.
+  if (!title || title.includes("{{") || /^\d{4}-\d{2}-\d{2}$/.test(title)) return null;
+  return title;
+}
+
 /** A note's name: its own heading if it starts with one, since a filename loses accents and case. */
 export function noteName(path: string, text: string | undefined): string {
-  const body = (text ?? "").replace(/^---\n[\s\S]*?\n---\n/, "").trimStart();
-  const heading = /^# +(.+?)\s*#*\s*$/m.exec(body.split("\n", 1)[0]);
-  const title = heading?.[1].trim();
-  // A template's placeholder or a date reads better from the path.
-  if (!title || title.includes("{{") || /^\d{4}-\d{2}-\d{2}$/.test(title)) return displayName(path);
-  return title;
+  return leadingHeading(text) ?? displayName(path);
 }
 
 /** Generated views say "do not edit" at the top, and get overwritten if edited. */

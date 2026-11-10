@@ -1,6 +1,6 @@
 import { blobSha, decodeBase64 } from "./blob";
 import { conflictCopyPath, syncNotes } from "./engine";
-import { GitHubError, type FileChange, type GitHubApi, type RemoteTree, isNotePath } from "./github";
+import { GitHubError, type FileChange, type GitHubApi, type RemoteTree, createGitHub, isNotePath } from "./github";
 import { saveEdit, type NoteRecord, type NoteStore } from "./store";
 
 /** An edit made from whatever is stored right now, as the editor normally does. */
@@ -36,6 +36,10 @@ class FakeGitHub implements GitHubApi {
   beforeCommit: (() => void) | null = null;
   afterPush: (() => void) | null = null;
   failDownload = false;
+  /** Which notes a batch brings back: none (the default), all, or every other one. */
+  batch: "none" | "all" | "half" = "none";
+  batchCalls = 0;
+  singleCalls = 0;
 
   async set(path: string, text: string) {
     this.files.set(path, text);
@@ -50,7 +54,20 @@ class FakeGitHub implements GitHubApi {
     for (const [path, text] of this.files) files.set(path, await blobSha(text));
     return { commitSha: String(this.headId), treeSha: String(this.headId), files };
   }
+  async getTexts(shas: string[]) {
+    this.batchCalls += 1;
+    const texts = new Map<string, string>();
+    if (this.batch === "none") return texts;
+    const byHash = new Map<string, string>();
+    for (const text of this.files.values()) byHash.set(await blobSha(text), text);
+    for (const [i, sha] of shas.entries()) {
+      const text = byHash.get(sha);
+      if (text !== undefined && !(this.batch === "half" && i % 2 === 1)) texts.set(sha, text);
+    }
+    return texts;
+  }
   async getText(sha: string) {
+    this.singleCalls += 1;
     if (this.failDownload) throw new GitHubError("network", "offline");
     for (const text of this.files.values()) {
       if ((await blobSha(text)) === sha) return text;
@@ -274,6 +291,103 @@ describe("syncNotes", () => {
     await syncNotes(github, store, undefined, NOW);
     expect(github.commits).toHaveLength(1);
     expect(github.commits[0]).toHaveLength(2);
+  });
+});
+
+describe("batched downloads", () => {
+  async function remote(count: number, batch: FakeGitHub["batch"]) {
+    const github = new FakeGitHub();
+    github.batch = batch;
+    for (let i = 0; i < count; i += 1) await github.set(`n${i}.md`, `note ${i}`);
+    return github;
+  }
+
+  it("fetches in batches of 100 instead of one note at a time", async () => {
+    const github = await remote(250, "all");
+    const store = new MemoryStore();
+    const progress: number[] = [];
+    const result = await syncNotes(github, store, (done) => progress.push(done), NOW);
+    expect(result.downloaded).toBe(250);
+    expect(github.batchCalls).toBe(3);
+    expect(github.singleCalls).toBe(0);
+    expect(store.notes.get("n249.md")?.text).toBe("note 249");
+    expect(progress[progress.length - 1]).toBe(250);
+  });
+
+  it("fetches whatever a batch leaves out one at a time", async () => {
+    const github = await remote(10, "half");
+    const store = new MemoryStore();
+    const result = await syncNotes(github, store, undefined, NOW);
+    expect(result.downloaded).toBe(10);
+    expect(github.singleCalls).toBe(5);
+  });
+
+  it("still downloads everything when batches are refused", async () => {
+    const github = await remote(10, "none");
+    const store = new MemoryStore();
+    const result = await syncNotes(github, store, undefined, NOW);
+    expect(result.downloaded).toBe(10);
+    expect(github.singleCalls).toBe(10);
+  });
+});
+
+describe("getTexts", () => {
+  const config = { owner: "me", repo: "notes", branch: "main", root: "vault", token: "t" };
+  const reply = (body: unknown, status = 200) => async () =>
+    new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+
+  it("keeps only text that hashes back to its SHA", async () => {
+    const good = await blobSha("right");
+    const bad = await blobSha("expected");
+    const github = createGitHub(
+      config,
+      reply({
+        data: {
+          repository: {
+            b0: { text: "right", isBinary: false, isTruncated: false },
+            b1: { text: "re-encoded", isBinary: false, isTruncated: false },
+          },
+        },
+      }),
+    );
+    const texts = await github.getTexts([good, bad]);
+    expect([...texts]).toEqual([[good, "right"]]);
+  });
+
+  it("leaves out truncated, binary and missing blobs", async () => {
+    const shas = await Promise.all(["a", "b", "c"].map(blobSha));
+    const github = createGitHub(
+      config,
+      reply({
+        data: {
+          repository: {
+            b0: { text: "a", isBinary: false, isTruncated: true },
+            b1: { text: null, isBinary: true, isTruncated: false },
+            b2: null,
+          },
+        },
+      }),
+    );
+    expect((await github.getTexts(shas)).size).toBe(0);
+  });
+
+  it("returns nothing rather than failing when the batch is refused", async () => {
+    const sha = await blobSha("a");
+    expect((await createGitHub(config, reply({ message: "no" }, 403)).getTexts([sha])).size).toBe(0);
+    const offline = async () => {
+      throw new TypeError("offline");
+    };
+    expect((await createGitHub(config, offline).getTexts([sha])).size).toBe(0);
+  });
+
+  it("never puts anything but a SHA into the query", async () => {
+    let body = "";
+    const capture = async (_url: RequestInfo | URL, init?: RequestInit) => {
+      body = String(init?.body);
+      return new Response("{}", { status: 200 });
+    };
+    await createGitHub(config, capture).getTexts(['x") { evil }', await blobSha("a")]);
+    expect(body).not.toContain("evil");
   });
 });
 

@@ -28,6 +28,10 @@ export class FakeGitHub {
   /** Runs before answering a matching request. Never resolving leaves it hanging. */
   private holds: { match: RegExp; hold: () => Promise<void> }[] = [];
   token = "good-key";
+  /** Answer GraphQL batches with a 403, as GitHub would for a key that can't use them. */
+  refuseBatches = false;
+  /** Every request answered, as "METHOD /path", to count what a sync cost. */
+  requests: string[] = [];
 
   constructor(files: Record<string, string>) {
     this.commitFiles(new Map(Object.entries(files)));
@@ -75,6 +79,7 @@ export class FakeGitHub {
     if (method === "OPTIONS") return route.fulfill({ status: 204, headers: CORS });
     const path = new URL(request.url()).pathname.replace(/^\/repos\/[^/]+\/[^/]+/, "");
     const label = `${method} ${path}`;
+    this.requests.push(label);
     const held = this.holds.findIndex((item) => item.match.test(label));
     if (held !== -1) {
       const [{ hold }] = this.holds.splice(held, 1);
@@ -97,6 +102,17 @@ export class FakeGitHub {
     match = /^\/git\/blobs\/(\w+)$/.exec(path);
     if (method === "GET" && match) {
       return reply(200, { content: Buffer.from(this.blobs.get(match[1])!).toString("base64") });
+    }
+
+    if (method === "POST" && path === "/graphql") {
+      if (this.refuseBatches) return reply(403, { message: "Resource not accessible" });
+      const { query } = request.postDataJSON() as { query: string };
+      const repository: Record<string, unknown> = {};
+      for (const [, alias, oid] of query.matchAll(/(b\d+): object\(oid: "(\w+)"\)/g)) {
+        const text = this.blobs.get(oid);
+        repository[alias] = text === undefined ? null : { text, isBinary: false, isTruncated: false };
+      }
+      return reply(200, { data: { repository } });
     }
 
     match = /^\/contents\/(.+)$/.exec(path);
