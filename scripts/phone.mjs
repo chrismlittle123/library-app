@@ -19,8 +19,7 @@ import { parseArgs } from "node:util";
 import { chromium, devices } from "@playwright/test";
 import { createServer } from "vite";
 
-// The closest size to an iPhone 16e (390×844), which Playwright doesn't list.
-const DEFAULT_DEVICE = "iPhone 14";
+const DEFAULT_DEVICE = "iPhone 16e";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const PROFILE = resolve(ROOT, "node_modules/.cache/phone-profile");
 const LIVE = "https://chrismlittle123.github.io/library-app/";

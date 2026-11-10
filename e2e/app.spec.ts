@@ -80,8 +80,8 @@ async function backAndSync(page: Page) {
 }
 
 async function openRecipe(page: Page, title: string) {
-  await page.getByRole("button", { name: /catalogues/ }).click();
-  await page.getByRole("button", { name: /recipes/ }).click();
+  await page.getByRole("button", { name: /Catalogues/ }).click();
+  await page.getByRole("button", { name: /Recipes/ }).click();
   await page.getByRole("button", { name: title, exact: true }).click();
 }
 
@@ -95,9 +95,9 @@ test("rejects a bad key", async ({ page }) => {
 
 test("connects, downloads notes, and hides non-notes", async ({ page }) => {
   await connect(page);
-  await expect(page.getByRole("button", { name: /^diary/ })).toBeVisible();
-  await expect(page.getByRole("button", { name: /^pipeline/ })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: /obsidian/ })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^Diary/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Pipeline/ })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /obsidian/i })).toHaveCount(0);
   const size = await page.evaluate(() => [document.documentElement.scrollWidth, document.documentElement.clientWidth]);
   expect(size[0]).toBeLessThanOrEqual(size[1]);
   // The production build's security policy must still let GitHub through.
@@ -119,7 +119,7 @@ test("today's entry uses the template and reaches GitHub", async ({ page }) => {
 
 test("a new note left empty creates nothing", async ({ page }) => {
   await connect(page);
-  await page.getByRole("button", { name: /^workshop/ }).click();
+  await page.getByRole("button", { name: /^Workshop/ }).click();
   await page.getByRole("button", { name: /New note/ }).click();
   const name = `untouched-${Date.now()}`;
   await page.getByLabel("Note name").fill(name);
@@ -132,9 +132,9 @@ test("a new note left empty creates nothing", async ({ page }) => {
 
 test("generated views open read-only", async ({ page }) => {
   await connect(page);
-  await page.getByRole("button", { name: /catalogues/ }).click();
-  await page.getByRole("button", { name: /wines/ }).click();
-  await page.getByRole("button", { name: "wines", exact: true }).click();
+  await page.getByRole("button", { name: /Catalogues/ }).click();
+  await page.getByRole("button", { name: /^Wines/ }).click();
+  await page.getByRole("button", { name: "Wines", exact: true }).click();
   await expect(page.getByRole("status")).toHaveText("Read only");
   await expect(editor(page)).toHaveAttribute("contenteditable", "false");
   await expect(page.getByRole("navigation", { name: "Formatting" })).toHaveCount(0);
@@ -154,7 +154,7 @@ test("search ignores accents and tolerates typos", async ({ page }) => {
 
 test("an open note picks up a change from elsewhere", async ({ page }) => {
   await connect(page);
-  await openRecipe(page, "roast-potatoes");
+  await openRecipe(page, "Roast potatoes");
   const mark = `from-mac-${Date.now()}`;
   await writeRemote("catalogues/recipes/roast-potatoes.md", `# Roast potatoes\n\n${mark}\n`);
   await page.evaluate(() => window.dispatchEvent(new Event("online")));
@@ -167,7 +167,7 @@ test.use({ serviceWorkers: "allow" });
 
 test("writing offline survives a reload and pushes once back online", async ({ page, context }) => {
   await connect(page);
-  await openRecipe(page, "tomato-soup");
+  await openRecipe(page, "Tomato soup");
   const mark = `offline-${Date.now()}`;
   await context.setOffline(true);
   await typeAtStart(page, `${mark} `);
@@ -176,13 +176,13 @@ test("writing offline survives a reload and pushes once back online", async ({ p
   await page.getByRole("button", { name: "Up a folder" }).click();
   await page.getByRole("button", { name: "Up a folder" }).click();
   await expect(page.getByRole("button", { name: /Offline · 1 not synced/ })).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByRole("region", { name: "Not synced" })).toContainText("tomato-soup");
+  await expect(page.getByRole("region", { name: "Not synced" })).toContainText("Tomato soup");
   expect(await readRemote("catalogues/recipes/tomato-soup.md")).not.toContain(mark);
 
   // The service worker serves the app, and the note comes back from the phone's storage.
   await page.waitForFunction(() => navigator.serviceWorker.controller !== null, undefined, { timeout: 15_000 });
   await page.reload();
-  await expect(page.getByRole("region", { name: "Not synced" })).toContainText("tomato-soup");
+  await expect(page.getByRole("region", { name: "Not synced" })).toContainText("Tomato soup");
 
   await context.setOffline(false);
   await page.evaluate(() => window.dispatchEvent(new Event("online")));
@@ -193,9 +193,9 @@ test("writing offline survives a reload and pushes once back online", async ({ p
 
 test("a change on both sides keeps both versions", async ({ page, context }) => {
   await connect(page);
-  await page.getByRole("button", { name: /^workshop/ }).click();
-  await page.getByRole("button", { name: /ideas/ }).click();
-  await page.getByRole("button", { name: "the-log", exact: true }).click();
+  await page.getByRole("button", { name: /^Workshop/ }).click();
+  await page.getByRole("button", { name: /^Ideas/ }).click();
+  await page.getByRole("button", { name: "The log", exact: true }).click();
   await context.setOffline(true);
   const phone = `phone-${Date.now()}`;
   await typeAtStart(page, `${phone} `);
@@ -205,7 +205,7 @@ test("a change on both sides keeps both versions", async ({ page, context }) => 
   await context.setOffline(false);
   await page.evaluate(() => window.dispatchEvent(new Event("online")));
 
-  await expect(page.getByRole("alert")).toContainText("the-log also changed elsewhere", { timeout: 30_000 });
+  await expect(page.getByRole("alert")).toContainText("The log also changed elsewhere", { timeout: 30_000 });
   await expect(editor(page)).toContainText(mac);
   expect(await readRemote("workshop/ideas/the-log.md")).toContain(mac);
 

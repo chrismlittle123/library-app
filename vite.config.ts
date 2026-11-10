@@ -7,6 +7,7 @@ const CSP = [
   "script-src 'self'",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data:",
+  "font-src 'self'",
   "connect-src 'self' https://api.github.com https://openbanking.chris-little.com",
   "manifest-src 'self'",
   "worker-src 'self'",
@@ -40,12 +41,14 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       includeAssets: ["apple-touch-icon.png"],
+      // The font too, or an offline app falls back to Georgia.
+      workbox: { globPatterns: ["**/*.{js,css,html,woff2}"] },
       manifest: {
         name: "Library",
         short_name: "Library",
         description: "A phone editor for a git-backed library",
-        theme_color: "#16151a",
-        background_color: "#16151a",
+        theme_color: "#1a1410",
+        background_color: "#1a1410",
         display: "standalone",
         start_url: "./",
         scope: "./",

@@ -21,6 +21,31 @@ export function noteTitle(path: string): string {
   return (path.split("/").pop() ?? path).replace(/\.md$/, "");
 }
 
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+/** A filename as words: "roast-potatoes" reads "Roast potatoes". Mixed case is left alone. */
+export function prettify(name: string): string {
+  // Hyphens between digits stay, so dates inside a name still read as dates.
+  const words = name.replace(/(?<!\d)[-_]+|[-_]+(?!\d)/g, " ").replace(/\s+/g, " ").trim();
+  if (words !== words.toLowerCase()) return words;
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/** How a note or folder is named on screen. Diary dates and month folders read as dates. */
+export function displayName(path: string): string {
+  const name = noteTitle(path);
+  const date = /^(\d{4})-(\d{2})-(\d{2})$/.exec(name);
+  if (date) {
+    const [year, month, day] = [Number(date[1]), Number(date[2]), Number(date[3])];
+    const weekday = DAYS[new Date(year, month - 1, day).getDay()];
+    return `${weekday} ${day} ${MONTHS[month - 1]} ${year}`;
+  }
+  const parent = path.split("/").slice(-2, -1)[0] ?? "";
+  if (/^\d{4}$/.test(parent) && /^(0[1-9]|1[0-2])$/.test(name)) return MONTHS[Number(name) - 1];
+  return prettify(name);
+}
+
 /** Generated views say "do not edit" at the top, and get overwritten if edited. */
 export function isGenerated(text: string): boolean {
   return text.slice(0, 120).includes("do not edit");

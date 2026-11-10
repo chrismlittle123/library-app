@@ -82,7 +82,29 @@ test("a review reads the cards from the notes and logs the grades", async ({ pag
   await button(page, "Back").click();
   await expect(page.getByText("All caught up")).toBeVisible();
   await button(page, "Library").click();
-  await expect(page.getByRole("button", { name: /^inbox/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Inbox/ })).toBeVisible();
+});
+
+test("a review can be left before answering anything", async ({ page }) => {
+  await button(page, "Flashcards").click();
+  await button(page, "Start review").click();
+  await button(page, "Exit review").click();
+  await expect(page.getByText("2 due")).toBeVisible();
+  await expect(button(page, "Library")).toBeVisible();
+  expect(log).toHaveLength(0);
+});
+
+test("leaving a review partway logs what was answered", async ({ page }) => {
+  await button(page, "Flashcards").click();
+  await button(page, "Start review").click();
+  await grade(page, "Good");
+  await button(page, "Exit review").click();
+  await expect(page.getByText("1 / 1 recalled")).toBeVisible();
+  await expect(page.getByText("Saved and logged for Sumi")).toBeVisible();
+  expect(log).toHaveLength(1);
+  expect(log[0]).toMatchObject({ graded: 1, good: 1 });
+  await button(page, "Back").click();
+  await expect(page.getByText("1 due")).toBeVisible();
 });
 
 test("a new card written on the Mac appears on the next open", async ({ page }) => {
