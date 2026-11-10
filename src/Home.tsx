@@ -3,7 +3,7 @@ import { NoteSearch } from "./search";
 import type { NoteRecord } from "./sync/store";
 import type { SyncStatus } from "./useSync";
 import { BackIcon, SettingsIcon } from "./icons";
-import { displayName, isConflictCopy, listFolder, newNotePath } from "./library";
+import { displayName, isConflictCopy, listFolder, newNotePath, noteName } from "./library";
 
 const RECENT_SHOWN = 4;
 
@@ -55,6 +55,7 @@ export function Home(props: Props) {
   }, [deferredQuery, notes]);
 
   const view = useMemo(() => listFolder(notes, folder), [notes, folder]);
+  const textOf = useMemo(() => new Map(notes.map((note) => [note.path, note.text])), [notes]);
   const unsynced = useMemo(() => notes.filter((note) => note.dirty), [notes]);
   const conflicts = useMemo(() => notes.filter((note) => isConflictCopy(note.path)), [notes]);
   const recentNotes = useMemo(() => {
@@ -108,7 +109,7 @@ export function Home(props: Props) {
             {hits.map((hit) => (
               <li key={hit.path}>
                 <button type="button" className="row" onClick={() => onOpen(hit.path)}>
-                  <span className="row-title">{displayName(hit.path)}</span>
+                  <span className="row-title">{noteName(hit.path, textOf.get(hit.path))}</span>
                   <span className="row-detail">{hit.snippet}</span>
                   <span className="row-path">{hit.path}</span>
                 </button>
@@ -230,7 +231,7 @@ function NoteRow({
     <li>
       <button type="button" className="row" onClick={() => onOpen(note.path)}>
         <span className="row-title">
-          {displayName(note.path)}
+          {noteName(note.path, note.text)}
           {note.dirty && <span className="dot" aria-label="Not synced" />}
         </span>
         {showPath && <span className="row-path">{note.path}</span>}

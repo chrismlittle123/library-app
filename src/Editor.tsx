@@ -8,7 +8,7 @@ import { loadMode, saveMode } from "./config";
 import { createEditorState, setMode, type Mode } from "./editorState";
 import type { NoteRecord } from "./sync/store";
 import { BackIcon } from "./icons";
-import { displayName, isGenerated } from "./library";
+import { isGenerated, noteName } from "./library";
 
 const SAVE_DELAY_MS = 250;
 
@@ -189,7 +189,7 @@ export function Editor({ path, text, record, readStored, onSave, onBack, autoFoc
         >
           <BackIcon />
         </button>
-        <h1 className="bar-title">{displayName(path)}</h1>
+        <h1 className="bar-title">{noteName(path, text)}</h1>
         <span className="status" role="status" data-status={state}>
           {label}
         </span>

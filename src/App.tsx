@@ -10,7 +10,7 @@ import type { RepoConfig } from "./sync/github";
 import { openStore, type NoteStore } from "./sync/store";
 import { useSync } from "./useSync";
 import { CloseIcon } from "./icons";
-import { DIARY_TEMPLATE_PATH, diaryPath, displayName, fillTemplate, noteTitle } from "./library";
+import { DIARY_TEMPLATE_PATH, diaryPath, fillTemplate, noteName, noteTitle } from "./library";
 
 /** Fit the app to the space above the keyboard, which iOS doesn't do for us. */
 function useVisualViewport() {
@@ -134,7 +134,7 @@ function Connected({
   const notice = conflicts.length > 0 && (
     <div className="notice" role="alert">
       <p>
-        {conflicts.map((c) => displayName(c.path)).join(", ")} also changed elsewhere. Both versions are
+        {conflicts.map((c) => noteName(c.path, notes.find((note) => note.path === c.path)?.text)).join(", ")} also changed elsewhere. Both versions are
         kept, and your phone's is listed on the home screen.
       </p>
       <button type="button" className="tool" aria-label="Dismiss" onClick={clearConflicts}>

@@ -29,6 +29,8 @@ export function prettify(name: string): string {
   // Hyphens between digits stay, so dates inside a name still read as dates.
   const words = name.replace(/(?<!\d)[-_]+|[-_]+(?!\d)/g, " ").replace(/\s+/g, " ").trim();
   if (words !== words.toLowerCase()) return words;
+  // Too short to be a word: "tv" is TV.
+  if (/^[a-z]{1,2}$/.test(words)) return words.toUpperCase();
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
@@ -44,6 +46,16 @@ export function displayName(path: string): string {
   const parent = path.split("/").slice(-2, -1)[0] ?? "";
   if (/^\d{4}$/.test(parent) && /^(0[1-9]|1[0-2])$/.test(name)) return MONTHS[Number(name) - 1];
   return prettify(name);
+}
+
+/** A note's name: its own heading if it starts with one, since a filename loses accents and case. */
+export function noteName(path: string, text: string | undefined): string {
+  const body = (text ?? "").replace(/^---\n[\s\S]*?\n---\n/, "").trimStart();
+  const heading = /^# +(.+?)\s*#*\s*$/m.exec(body.split("\n", 1)[0]);
+  const title = heading?.[1].trim();
+  // A template's placeholder or a date reads better from the path.
+  if (!title || title.includes("{{") || /^\d{4}-\d{2}-\d{2}$/.test(title)) return displayName(path);
+  return title;
 }
 
 /** Generated views say "do not edit" at the top, and get overwritten if edited. */

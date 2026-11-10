@@ -8,6 +8,7 @@ import {
   isGenerated,
   listFolder,
   newNotePath,
+  noteName,
   noteTitle,
   prettify,
 } from "./library";
@@ -127,6 +128,7 @@ describe("display names", () => {
     expect(prettify("roast-potatoes")).toBe("Roast potatoes");
     expect(prettify("economic_history")).toBe("Economic history");
     expect(prettify("iPhone-notes")).toBe("iPhone notes");
+    expect(prettify("tv")).toBe("TV");
   });
 
   it("reads diary dates and month folders as dates", () => {
@@ -139,5 +141,19 @@ describe("display names", () => {
     expect(displayName("recipes/roast-potatoes (phone conflict 2026-11-10 0930).md")).toBe(
       "Roast potatoes (phone conflict 2026-11-10 0930)",
     );
+  });
+});
+
+describe("note names", () => {
+  it("prefers the note's own heading, which keeps accents", () => {
+    expect(noteName("recipes/alubias-espanolas.md", "# Alubias españolas\n\nBeans.")).toBe("Alubias españolas");
+    expect(noteName("books/x.md", "---\ntags: [a]\n---\n# The Remains of the Day\n")).toBe("The Remains of the Day");
+  });
+
+  it("falls back to the filename without a usable heading", () => {
+    expect(noteName("inbox/gift-ideas.md", "Some text\n# Later heading")).toBe("Gift ideas");
+    expect(noteName("diary/daily/2026/11/2026-11-10.md", "# 2026-11-10\n")).toBe("Tuesday 10 November 2026");
+    expect(noteName("templates/daily.md", "# {{date:YYYY-MM-DD}}\n")).toBe("Daily");
+    expect(noteName("inbox/new.md", undefined)).toBe("New");
   });
 });
