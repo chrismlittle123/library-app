@@ -34,6 +34,13 @@ export class FakeGitHub {
   requests: string[] = [];
   /** Every commit message pushed, oldest first. */
   messages: string[] = [];
+  /**
+   * After each push, answer this many ref reads with the commit before it, as
+   * real GitHub was seen to do on 2026-11-11 a few seconds after a write.
+   */
+  staleReadsAfterPush = 0;
+  private staleReads = 0;
+  private beforePush = "";
 
   constructor(files: Record<string, string>) {
     this.commitFiles(new Map(Object.entries(files)));
@@ -92,7 +99,25 @@ export class FakeGitHub {
 
     if ((await request.headerValue("authorization")) !== `Bearer ${this.token}`) return reply(401, {});
     if (method === "GET" && path === "") return reply(200, { default_branch: "main", permissions: { push: true } });
-    if (method === "GET" && path === "/git/ref/heads/main") return reply(200, { object: { sha: this.head } });
+    if (method === "GET" && path === "/git/ref/heads/main") {
+      if (this.staleReads > 0) {
+        this.staleReads -= 1;
+        return reply(200, { object: { sha: this.beforePush } });
+      }
+      return reply(200, { object: { sha: this.head } });
+    }
+    const compare = /^\/compare\/(\w+)\.\.\.(\w+)$/.exec(path);
+    if (method === "GET" && compare) {
+      const [, base, head] = compare;
+      const ancestors = (sha: string) => {
+        const seen = new Set<string>();
+        for (let at: string | undefined = sha; at; at = this.parents.get(at)) seen.add(at);
+        return seen;
+      };
+      const status =
+        base === head ? "identical" : ancestors(base).has(head) ? "behind" : ancestors(head).has(base) ? "ahead" : "diverged";
+      return reply(200, { status });
+    }
 
     let match = /^\/git\/commits\/(\w+)$/.exec(path);
     if (method === "GET" && match) return reply(200, { tree: { sha: this.storeTree(this.commits.get(match[1])!) } });
@@ -142,6 +167,8 @@ export class FakeGitHub {
     }
     if (method === "PATCH" && path === "/git/refs/heads/main") {
       if (this.parents.get(body.sha) !== this.head) return reply(422, { message: "Update is not a fast forward" });
+      this.beforePush = this.head;
+      this.staleReads = this.staleReadsAfterPush;
       this.head = body.sha;
       return reply(200, {});
     }
