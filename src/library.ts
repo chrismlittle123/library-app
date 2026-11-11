@@ -13,6 +13,8 @@ export function diaryPath(date: Date): string {
 
 const DAILY_ENTRY = /^diary\/daily\/\d{4}\/\d{2}\/(\d{4}-\d{2}-\d{2})(?:_[^/]*)?\.md$/;
 const RANGE_ENTRY = /^diary\/weekly\/\d{4}\/(\d{4}-\d{2}-\d{2})_to_(\d{4}-\d{2}-\d{2})\.md$/;
+/** A range heading, as "# 04/05-17/05" or the older "# __17/12-02/01__". */
+const RANGE_HEADING = /^#\s*_*(\d{2})\/(\d{2})\s*-\s*(\d{2})\/(\d{2})_*\s*$/;
 const SHORT_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 const parseIso = (iso: string) => new Date(Number(iso.slice(0, 4)), Number(iso.slice(5, 7)) - 1, Number(iso.slice(8, 10)));
@@ -26,19 +28,32 @@ export interface DiaryEntry {
   span: string;
 }
 
+/** The last day a daily entry covers: its own date, or the end of the range in its heading. */
+function dailyEnd(start: string, text: string): string {
+  const heading = text.split("\n").find((line) => line.trim() !== "") ?? "";
+  const range = RANGE_HEADING.exec(heading.trim());
+  if (!range) return start;
+  const [, , , endDay, endMonth] = range;
+  // The heading has no year: the end is in the start's year, or the next if it wrapped.
+  let year = Number(start.slice(0, 4));
+  if (`${endMonth}-${endDay}` < start.slice(5)) year += 1;
+  return `${year}-${endMonth}-${endDay}`;
+}
+
 /**
- * The next diary entry, following the vault's layout: everything since the last
- * entry goes in one range entry under weekly/, or today's daily entry if the last
- * one was yesterday. An entry already covering today is reopened instead.
+ * The next diary entry, as the vault keeps them: everything since the last entry
+ * goes in one daily entry named by its first day and headed with the range it
+ * covers, or is just today's entry if the last one was yesterday. An entry already
+ * covering today is reopened instead.
  */
-export function nextDiaryEntry(paths: string[], today: Date): DiaryEntry {
+export function nextDiaryEntry(notes: { path: string; text: string }[], today: Date): DiaryEntry {
   const todayIso = isoDate(today);
   let last = "";
   let lastPath = "";
-  for (const path of paths) {
+  for (const { path, text } of notes) {
     const daily = DAILY_ENTRY.exec(path);
     const range = RANGE_ENTRY.exec(path);
-    const end = daily?.[1] ?? range?.[2];
+    const end = daily ? dailyEnd(daily[1], text) : range?.[2];
     // A date in the future is a typo, not the last entry.
     if (end && end <= todayIso && end > last) {
       last = end;
@@ -51,7 +66,7 @@ export function nextDiaryEntry(paths: string[], today: Date): DiaryEntry {
   if (startIso >= todayIso) return { path: diaryPath(today), draft: "", span: "Today" };
   const ddmm = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
   return {
-    path: `diary/weekly/${today.getFullYear()}/${startIso}_to_${todayIso}.md`,
+    path: diaryPath(start),
     draft: `# ${ddmm(startIso)}-${ddmm(todayIso)}\n\n`,
     span: `${dayMonth(startIso)} – ${dayMonth(todayIso)}`,
   };

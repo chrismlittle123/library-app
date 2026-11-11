@@ -128,18 +128,23 @@ test("connects, downloads notes, and hides non-notes", async ({ page }) => {
 
 test("a new diary entry covers the days since the last one and reaches GitHub", async ({ page }) => {
   await connect(page);
-  const { year, month, iso } = isoToday();
   const mark = `written-${Date.now()}`;
   await page.getByRole("button", { name: /^(New diary entry|Continue today's entry)/ }).click();
   await typeAtStart(page, `${mark} `);
   await expect(page.getByRole("status")).toHaveText(/Not synced|Saving/);
   await backAndSync(page);
-  // The baseline's last entry is in the past, so this is a range entry ending today.
-  const listing = await fetch(`${API}/diary/weekly/${year}?t=${Date.now()}`, { headers: HEADERS, cache: "no-store" });
-  const names = listing.ok ? ((await listing.json()) as { name: string }[]).map((item) => item.name) : [];
-  const range = names.find((name) => name.endsWith(`_to_${iso}.md`));
-  const remote = await readRemote(range ? `diary/weekly/${year}/${range}` : `diary/daily/${year}/${month}/${iso}.md`);
+  // The baseline's last entry is in the past, so this is a range entry, filed in
+  // daily/ under the day after it and headed with the range up to today.
+  const commits = await fetch(`https://api.github.com/repos/${REPO}/commits?per_page=1`, { headers: HEADERS, cache: "no-store" });
+  const [{ sha }] = (await commits.json()) as { sha: string }[];
+  const commit = await fetch(`https://api.github.com/repos/${REPO}/commits/${sha}`, { headers: HEADERS, cache: "no-store" });
+  const [file] = ((await commit.json()) as { files: { filename: string }[] }).files;
+  expect(file.filename).toMatch(/^vault\/diary\/daily\/\d{4}\/\d{2}\/\d{4}-\d{2}-\d{2}\.md$/);
+  const remote = await readRemote(file.filename.replace(/^vault\//, ""));
   expect(remote).toContain(mark);
+  const { iso } = isoToday();
+  // The test typed at the very start, so the heading follows its mark on line one.
+  expect(remote).toMatch(new RegExp(`# \\d{2}/\\d{2}-${iso.slice(8, 10)}/${iso.slice(5, 7)}`));
 });
 
 test("a new note left empty creates nothing", async ({ page }) => {
