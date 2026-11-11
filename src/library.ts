@@ -12,61 +12,40 @@ export function diaryPath(date: Date): string {
 }
 
 const DAILY_ENTRY = /^diary\/daily\/\d{4}\/\d{2}\/(\d{4}-\d{2}-\d{2})(?:_[^/]*)?\.md$/;
-const RANGE_ENTRY = /^diary\/weekly\/\d{4}\/(\d{4}-\d{2}-\d{2})_to_(\d{4}-\d{2}-\d{2})\.md$/;
-/** A range heading, as "# 04/05-17/05" or the older "# __17/12-02/01__". */
-const RANGE_HEADING = /^#\s*_*(\d{2})\/(\d{2})\s*-\s*(\d{2})\/(\d{2})_*\s*$/;
+const MONTHLY_REVIEW = /^diary\/monthly\/\d{4}\/(\d{4})-(\d{2})\.md$/;
 const SHORT_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 const parseIso = (iso: string) => new Date(Number(iso.slice(0, 4)), Number(iso.slice(5, 7)) - 1, Number(iso.slice(8, 10)));
 const dayMonth = (iso: string) => `${Number(iso.slice(8, 10))} ${SHORT_MONTHS[Number(iso.slice(5, 7)) - 1]}`;
+const ddmm = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 
 export interface DiaryEntry {
   path: string;
-  /** What a new file starts with. Ranges carry their dates as a heading; days and months don't. */
+  /** What a new entry starts with: the days it covers, as every entry in the vault does. */
   draft: string;
   /** The span it covers, for the button: "26 Oct – 10 Nov", or "Today". */
   span: string;
 }
 
-/** The last day a daily entry covers: its own date, or the end of the range in its heading. */
-function dailyEnd(start: string, text: string): string {
-  const heading = text.split("\n").find((line) => line.trim() !== "") ?? "";
-  const range = RANGE_HEADING.exec(heading.trim());
-  if (!range) return start;
-  const [, , , endDay, endMonth] = range;
-  // The heading has no year: the end is in the start's year, or the next if it wrapped.
-  let year = Number(start.slice(0, 4));
-  if (`${endMonth}-${endDay}` < start.slice(5)) year += 1;
-  return `${year}-${endMonth}-${endDay}`;
-}
-
 /**
- * The next diary entry, as the vault keeps them: everything since the last entry
- * goes in one daily entry named by its first day and headed with the range it
- * covers, or is just today's entry if the last one was yesterday. An entry already
- * covering today is reopened instead.
+ * The next diary entry, as the vault keeps them: each covers the days since the
+ * one before, is named by its last day, and starts with "# DD/MM-DD/MM" (or
+ * "# DD/MM" for one day). Today's entry is reopened if it's already there.
  */
-export function nextDiaryEntry(notes: { path: string; text: string }[], today: Date): DiaryEntry {
+export function nextDiaryEntry(notes: { path: string }[], today: Date): DiaryEntry {
   const todayIso = isoDate(today);
+  const path = diaryPath(today);
   let last = "";
-  let lastPath = "";
-  for (const { path, text } of notes) {
-    const daily = DAILY_ENTRY.exec(path);
-    const range = RANGE_ENTRY.exec(path);
-    const end = daily ? dailyEnd(daily[1], text) : range?.[2];
+  for (const note of notes) {
+    const date = DAILY_ENTRY.exec(note.path)?.[1];
     // A date in the future is a typo, not the last entry.
-    if (end && end <= todayIso && end > last) {
-      last = end;
-      lastPath = path;
-    }
+    if (date && date <= todayIso && date > last) last = date;
   }
-  if (last === todayIso) return { path: lastPath, draft: "", span: "Today" };
-  const start = last ? new Date(parseIso(last).getTime() + 36 * 3600 * 1000) : today;
-  const startIso = isoDate(start);
-  if (startIso >= todayIso) return { path: diaryPath(today), draft: "", span: "Today" };
-  const ddmm = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+  if (last === todayIso) return { path, draft: "", span: "Today" };
+  const startIso = last ? isoDate(new Date(parseIso(last).getTime() + 36 * 3600 * 1000)) : todayIso;
+  if (startIso >= todayIso) return { path, draft: `# ${ddmm(todayIso)}\n\n`, span: "Today" };
   return {
-    path: diaryPath(start),
+    path,
     draft: `# ${ddmm(startIso)}-${ddmm(todayIso)}\n\n`,
     span: `${dayMonth(startIso)} – ${dayMonth(todayIso)}`,
   };
@@ -119,8 +98,19 @@ export function leadingHeading(text: string | undefined): string | null {
   return title;
 }
 
-/** A note's name: its own heading if it starts with one, since a filename loses accents and case. */
+/**
+ * A note's name: its own heading if it starts with one, since a filename loses
+ * accents and case. A diary entry is named by the days it covers, and a monthly
+ * review by its month, whatever its heading says.
+ */
 export function noteName(path: string, text: string | undefined): string {
+  const month = MONTHLY_REVIEW.exec(path);
+  if (month) return `${MONTHS[Number(month[2]) - 1]} ${month[1]}`;
+  const daily = DAILY_ENTRY.exec(path);
+  if (daily) {
+    const heading = leadingHeading(text);
+    return heading && /^\d{2}\/\d{2}(-\d{2}\/\d{2})?$/.test(heading) ? heading : ddmm(daily[1]);
+  }
   return leadingHeading(text) ?? displayName(path);
 }
 

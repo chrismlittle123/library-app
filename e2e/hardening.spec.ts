@@ -34,20 +34,22 @@ async function connect(page: Page) {
   await expect(synced(page)).toBeVisible();
 }
 
-test("the diary shortcut writes today's entry with no template, and Templates is hidden", async ({ page }) => {
+test("the diary shortcut writes today's entry headed with its date, and Templates is hidden", async ({ page }) => {
   await connect(page);
   await expect(button(page, /^Catalogues/)).toBeVisible();
   await expect(button(page, /^Templates/)).toHaveCount(0);
   await button(page, /^New diary entry/).click();
   await expect(editor(page)).toBeFocused();
   await page.keyboard.type("dear diary");
-  await expect(editor(page)).toHaveText("dear diary");
   await button(page, "Back").click();
   await expect(synced(page)).toBeVisible();
   const d = new Date();
   const pad = (n: number) => String(n).padStart(2, "0");
   const iso = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-  expect(github.read(`diary/daily/${d.getFullYear()}/${pad(d.getMonth() + 1)}/${iso}.md`)).toBe("dear diary");
+  // With no earlier entry it covers just today, and says so like every entry does.
+  expect(github.read(`diary/daily/${d.getFullYear()}/${pad(d.getMonth() + 1)}/${iso}.md`)).toBe(
+    `# ${pad(d.getDate())}/${pad(d.getMonth() + 1)}\n\ndear diary`,
+  );
   await expect(button(page, /^Continue today's entry/)).toBeVisible();
 });
 
