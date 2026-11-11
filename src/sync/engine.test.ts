@@ -1,5 +1,5 @@
 import { blobSha, decodeBase64 } from "./blob";
-import { conflictCopyPath, deletionMessage, syncNotes } from "./engine";
+import { conflictCopyPath, deletionMessage, syncNotes, timing } from "./engine";
 import { GitHubError, type FileChange, type GitHubApi, type RemoteTree, createGitHub, isNotePath } from "./github";
 import { markDeleted, saveEdit, type NoteRecord, type NoteStore } from "./store";
 
@@ -41,6 +41,9 @@ class FakeGitHub implements GitHubApi {
   batch: "none" | "all" | "half" = "none";
   batchCalls = 0;
   singleCalls = 0;
+  /** Trees to hand out before the real one, as GitHub lagging behind would. */
+  staleTrees: RemoteTree[] = [];
+  treeReads = 0;
 
   async set(path: string, text: string) {
     this.files.set(path, text);
@@ -51,6 +54,9 @@ class FakeGitHub implements GitHubApi {
     this.headId += 1;
   }
   async getTree(): Promise<RemoteTree> {
+    this.treeReads += 1;
+    const stale = this.staleTrees.shift();
+    if (stale) return stale;
     const files = new Map<string, string>();
     for (const [path, text] of this.files) files.set(path, await blobSha(text));
     return { commitSha: String(this.headId), treeSha: String(this.headId), files };
@@ -296,6 +302,46 @@ describe("syncNotes", () => {
     await syncNotes(github, store, undefined, NOW);
     expect(github.commits).toHaveLength(1);
     expect(github.commits[0]).toHaveLength(2);
+  });
+});
+
+describe("a second look before keeping both", () => {
+  timing.confirmConflictMs = 0;
+
+  it("makes no conflict copy when GitHub briefly reports an older version", async () => {
+    const { github, store } = await setup({ "post.md": "draft one" });
+    const before = await github.getTree();
+    await edit(store, "post.md", "draft two");
+    await syncNotes(github, store, undefined, NOW);
+    await edit(store, "post.md", "draft three");
+    // The next read shows the tree from before "draft two" was pushed.
+    github.staleTrees = [before];
+    const result = await syncNotes(github, store, undefined, NOW);
+    expect(result.conflicts).toEqual([]);
+    expect([...github.files.keys()]).toEqual(["post.md"]);
+    expect(github.files.get("post.md")).toBe("draft three");
+  });
+
+  it("still keeps both when the conflict is real", async () => {
+    const { github, store } = await setup({ "post.md": "draft one" });
+    await edit(store, "post.md", "phone");
+    await github.set("post.md", "mac");
+    const result = await syncNotes(github, store, undefined, NOW);
+    expect(result.conflicts).toHaveLength(1);
+    // Looked twice before deciding.
+    expect(github.treeReads).toBeGreaterThanOrEqual(3);
+  });
+
+  it("doesn't bring a deleted note back over a passing glitch", async () => {
+    const { github, store } = await setup({ "a.md": "one" });
+    const before = await github.getTree();
+    await edit(store, "a.md", "two");
+    await syncNotes(github, store, undefined, NOW);
+    await markDeleted(store, "a.md");
+    github.staleTrees = [before];
+    const result = await syncNotes(github, store, undefined, NOW);
+    expect(result.keptDeletes).toEqual([]);
+    expect(github.files.has("a.md")).toBe(false);
   });
 });
 

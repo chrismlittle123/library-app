@@ -109,6 +109,29 @@ test("GitHub lagging just after a push doesn't make a conflict copy", async ({ p
   await expect(page.getByRole("alert")).toHaveCount(0);
 });
 
+test("a relaunch straight after a push, while GitHub lags, makes no conflict copy", async ({ page }) => {
+  await connect(page);
+  await openRecipe(page, "Roast potatoes");
+  await editor(page).click();
+  await page.keyboard.press("ControlOrMeta+End");
+  await page.keyboard.type(" before");
+  github.staleReadsAfterPush = 4;
+  await button(page, "Back").click();
+  await expect(synced(page)).toBeVisible();
+  // iOS relaunching the app, which forgets everything not in storage.
+  await page.reload();
+  await button(page, /^Catalogues/).click();
+  await button(page, /^Recipes/).click();
+  await button(page, "Roast potatoes").click();
+  await editor(page).click();
+  await page.keyboard.press("ControlOrMeta+End");
+  await page.keyboard.type(" after");
+  await button(page, "Back").click();
+  await expect(synced(page)).toBeVisible({ timeout: 20_000 });
+  expect(github.paths().filter((path) => path.includes("phone conflict"))).toEqual([]);
+  expect(github.read(POTATO)).toMatch(/before after/);
+});
+
 test("the first download fetches notes in a batch, not one at a time", async ({ page }) => {
   await connect(page);
   expect(github.requests.filter((label) => label === "POST /graphql")).toHaveLength(1);
