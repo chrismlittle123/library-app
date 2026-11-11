@@ -87,6 +87,28 @@ test("deleting a folder removes every note in it as one commit", async ({ page }
   expect(deletes).toEqual([expect.stringMatching(/^phone: delete 2 notes in catalogues\/recipes\n/)]);
 });
 
+test("GitHub lagging just after a push doesn't make a conflict copy", async ({ page }) => {
+  github.staleReadsAfterPush = 3;
+  await connect(page);
+  await openRecipe(page, "Roast potatoes");
+  await editor(page).click();
+  await page.keyboard.press("ControlOrMeta+End");
+  await page.keyboard.type(" one");
+  await button(page, "Back").click();
+  await expect(synced(page)).toBeVisible();
+  // Straight back in and writing more, while GitHub still answers with the old head.
+  await button(page, "Roast potatoes").click();
+  await editor(page).click();
+  await page.keyboard.press("ControlOrMeta+End");
+  await page.keyboard.type(" two");
+  await button(page, "Back").click();
+  await expect(synced(page)).toBeVisible({ timeout: 15_000 });
+  expect(github.paths().filter((path) => path.includes("phone conflict"))).toEqual([]);
+  expect(github.read(POTATO)).toContain("one");
+  expect(github.read(POTATO)).toContain("two");
+  await expect(page.getByRole("alert")).toHaveCount(0);
+});
+
 test("the first download fetches notes in a batch, not one at a time", async ({ page }) => {
   await connect(page);
   expect(github.requests.filter((label) => label === "POST /graphql")).toHaveLength(1);

@@ -53,6 +53,14 @@ export function isNotePath(path: string): boolean {
 }
 
 const API = "https://api.github.com";
+// Right after a push, GitHub can briefly answer a ref read with the commit before
+// it. Taken at face value, that looks like someone else changed every note just
+// pushed, and makes conflict copies of them. So each branch remembers the last
+// commit this app pushed, and a read that's behind it is asked again.
+const pushedHeads = new Map<string, string>();
+const STALE_RETRIES = 5;
+const STALE_WAIT_MS = 1000;
+
 /** How many notes one batch asks for. GraphQL charges a batch as one request. */
 export const BATCH_SIZE = 100;
 // iOS can leave a request hanging after the app is suspended, which would block every later sync.
@@ -61,6 +69,28 @@ const REQUEST_TIMEOUT_MS = 30_000;
 export function createGitHub(config: RepoConfig, fetchFn: typeof fetch = fetch.bind(globalThis)): GitHubApi {
   const prefix = config.root ? `${config.root}/` : "";
   const repoUrl = `${API}/repos/${config.owner}/${config.repo}`;
+  const branchKey = `${config.owner}/${config.repo}/${config.branch}`;
+
+  /** The branch head, never older than the last commit this app pushed to it. */
+  async function readHead(): Promise<string> {
+    const read = () =>
+      request<{ object: { sha: string } }>(`/git/ref/heads/${encodeURIComponent(config.branch)}`).then((ref) => ref.object.sha);
+    let head = await read();
+    const pushed = pushedHeads.get(branchKey);
+    for (let attempt = 0; pushed && head !== pushed && attempt < STALE_RETRIES; attempt += 1) {
+      const comparison = await request<{ status: string }>(`/compare/${pushed}...${head}`).catch(
+        // Gone, as after a force push: there's nothing to be behind.
+        (error: unknown) => (error instanceof GitHubError && error.kind === "not-found" ? null : Promise.reject(error)),
+      );
+      if (comparison?.status !== "behind") break;
+      await new Promise((resolve) => setTimeout(resolve, STALE_WAIT_MS));
+      head = await read();
+    }
+    // Still behind after that is a real rewind, not lag, so it's believed.
+    // Caught up, or moved on past it: either way it's the head from now on.
+    pushedHeads.set(branchKey, head);
+    return head;
+  }
 
   async function request<T>(path: string, init?: RequestInit): Promise<T> {
     let response: Response;
@@ -86,10 +116,8 @@ export function createGitHub(config: RepoConfig, fetchFn: typeof fetch = fetch.b
 
   return {
     async getTree() {
-      const ref = await request<{ object: { sha: string } }>(
-        `/git/ref/heads/${encodeURIComponent(config.branch)}`,
-      );
-      const commit = await request<{ tree: { sha: string } }>(`/git/commits/${ref.object.sha}`);
+      const head = await readHead();
+      const commit = await request<{ tree: { sha: string } }>(`/git/commits/${head}`);
       const tree = await request<{
         truncated: boolean;
         tree: { path: string; type: string; sha: string }[];
@@ -102,7 +130,7 @@ export function createGitHub(config: RepoConfig, fetchFn: typeof fetch = fetch.b
         const path = item.path.slice(prefix.length);
         if (isNotePath(path)) files.set(path, item.sha);
       }
-      return { commitSha: ref.object.sha, treeSha: commit.tree.sha, files };
+      return { commitSha: head, treeSha: commit.tree.sha, files };
     },
 
     async getText(sha) {
@@ -180,6 +208,7 @@ export function createGitHub(config: RepoConfig, fetchFn: typeof fetch = fetch.b
         }
         throw error;
       });
+      pushedHeads.set(branchKey, commit.sha);
     },
   };
 }
