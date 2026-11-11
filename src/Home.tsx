@@ -5,7 +5,7 @@ import type { SyncStatus } from "./useSync";
 import { BackIcon, SettingsIcon } from "./icons";
 import { displayName, dueMonthlyReview, isConflictCopy, listFolder, newNotePath, nextDiaryEntry, noteName } from "./library";
 
-const RECENT_SHOWN = 4;
+const RECENT_SHOWN = 3;
 
 interface Props {
   notes: NoteRecord[];
@@ -81,7 +81,7 @@ export function Home(props: Props) {
     return listed;
   }, [notes, folder]);
   const paths = useMemo(() => notes.map((note) => note.path), [notes]);
-  const diary = nextDiaryEntry(paths, new Date());
+  const diary = nextDiaryEntry(notes, new Date());
   const review = dueMonthlyReview(paths, new Date());
   const textOf = useMemo(() => new Map(notes.map((note) => [note.path, note.text])), [notes]);
   const unsynced = useMemo(() => notes.filter((note) => note.dirty), [notes]);

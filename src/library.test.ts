@@ -158,26 +158,38 @@ describe("note names", () => {
 
 describe("diary shortcuts", () => {
   const today = new Date(2026, 10, 10);
+  const entry = (path: string, text = "Words.") => ({ path, text });
 
-  it("covers everything since the last entry in one range entry", () => {
-    const entry = nextDiaryEntry(
-      ["diary/daily/2026/10/2026-10-20.md", "diary/daily/2026/10/2026-10-25.md", "inbox/x.md"],
-      today,
-    );
-    expect(entry).toEqual({
-      path: "diary/weekly/2026/2026-10-26_to_2026-11-10.md",
+  it("covers everything since the last entry, filed under its first day", () => {
+    expect(nextDiaryEntry([entry("diary/daily/2026/10/2026-10-20.md"), entry("diary/daily/2026/10/2026-10-25.md"), entry("inbox/x.md")], today)).toEqual({
+      path: "diary/daily/2026/10/2026-10-26.md",
       draft: "# 26/10-10/11\n\n",
       span: "26 Oct – 10 Nov",
     });
   });
 
-  it("counts a range entry's end as the last entry", () => {
-    const entry = nextDiaryEntry(["diary/daily/2026/10/2026-10-25.md", "diary/weekly/2026/2026-10-26_to_2026-11-05.md"], today);
-    expect(entry.path).toBe("diary/weekly/2026/2026-11-06_to_2026-11-10.md");
+  it("reads where a range entry ends from its heading, in either style", () => {
+    expect(nextDiaryEntry([entry("diary/daily/2026/10/2026-10-26.md", "# 26/10-05/11\n\nWords.")], today).path).toBe(
+      "diary/daily/2026/11/2026-11-06.md",
+    );
+    expect(nextDiaryEntry([entry("diary/daily/2026/10/2026-10-26.md", "# __26/10-09/11__\n")], today).path).toBe(
+      "diary/daily/2026/11/2026-11-10.md",
+    );
+  });
+
+  it("works out the year when a range heading crosses New Year", () => {
+    expect(nextDiaryEntry([entry("diary/daily/2025/12/2025-12-17.md", "# __17/12-02/01__")], new Date(2026, 0, 10)).path).toBe(
+      "diary/daily/2026/01/2026-01-03.md",
+    );
+  });
+
+  it("still counts the older range entries under weekly/", () => {
+    const next = nextDiaryEntry([entry("diary/daily/2026/10/2026-10-25.md"), entry("diary/weekly/2026/2026-10-26_to_2026-11-05.md")], today);
+    expect(next.path).toBe("diary/daily/2026/11/2026-11-06.md");
   });
 
   it("writes today's daily entry when the last one was yesterday", () => {
-    expect(nextDiaryEntry(["diary/daily/2026/11/2026-11-09.md"], today)).toEqual({
+    expect(nextDiaryEntry([entry("diary/daily/2026/11/2026-11-09.md")], today)).toEqual({
       path: "diary/daily/2026/11/2026-11-10.md",
       draft: "",
       span: "Today",
@@ -185,20 +197,20 @@ describe("diary shortcuts", () => {
   });
 
   it("reopens an entry that already covers today", () => {
-    expect(nextDiaryEntry(["diary/weekly/2026/2026-11-01_to_2026-11-10.md"], today).path).toBe(
-      "diary/weekly/2026/2026-11-01_to_2026-11-10.md",
+    expect(nextDiaryEntry([entry("diary/daily/2026/11/2026-11-01.md", "# 01/11-10/11")], today).path).toBe(
+      "diary/daily/2026/11/2026-11-01.md",
     );
-    expect(nextDiaryEntry(["diary/daily/2026/11/2026-11-10.md"], today).path).toBe("diary/daily/2026/11/2026-11-10.md");
+    expect(nextDiaryEntry([entry("diary/daily/2026/11/2026-11-10.md")], today).path).toBe("diary/daily/2026/11/2026-11-10.md");
   });
 
   it("ignores dates in the future and starts with today when there's nothing", () => {
-    expect(nextDiaryEntry(["diary/daily/2027/01/2027-01-01.md"], today).path).toBe("diary/daily/2026/11/2026-11-10.md");
+    expect(nextDiaryEntry([entry("diary/daily/2027/01/2027-01-01.md")], today).path).toBe("diary/daily/2026/11/2026-11-10.md");
   });
 
   it("crosses a month and a year", () => {
-    const entry = nextDiaryEntry(["diary/daily/2026/12/2026-12-29.md"], new Date(2027, 0, 3));
-    expect(entry.path).toBe("diary/weekly/2027/2026-12-30_to_2027-01-03.md");
-    expect(entry.draft).toBe("# 30/12-03/01\n\n");
+    const next = nextDiaryEntry([entry("diary/daily/2026/12/2026-12-29.md")], new Date(2027, 0, 3));
+    expect(next.path).toBe("diary/daily/2026/12/2026-12-30.md");
+    expect(next.draft).toBe("# 30/12-03/01\n\n");
   });
 
   it("offers last month's review only until it's written", () => {
