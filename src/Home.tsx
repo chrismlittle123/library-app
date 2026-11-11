@@ -3,6 +3,7 @@ import { NoteSearch } from "./search";
 import type { NoteRecord } from "./sync/store";
 import type { SyncStatus } from "./useSync";
 import { BackIcon, SettingsIcon } from "./icons";
+import { SectionIcon, hasSectionIcon } from "./sectionIcons";
 import { displayName, dueMonthlyReview, isConflictCopy, listFolder, newNotePath, nextDiaryEntry, noteName } from "./library";
 
 const RECENT_SHOWN = 3;
@@ -209,6 +210,7 @@ export function Home(props: Props) {
               {view.folders.map((item) => (
                 <li key={item.path}>
                   <button type="button" className="row folder" onClick={() => onFolder(item.path)}>
+                    {!folder && hasSectionIcon(item.name) && <SectionIcon name={item.name} />}
                     <span className="row-title">{displayName(item.path)}</span>
                     <span className="row-count">{item.count}</span>
                   </button>
@@ -309,21 +311,26 @@ function NoteRow({
   showFolder?: boolean;
 }) {
   const parent = note.path.includes("/") ? note.path.slice(0, note.path.lastIndexOf("/")) : "";
+  const section = note.path.split("/")[0];
+  const icon = showFolder && hasSectionIcon(section);
   return (
     <li>
-      <button type="button" className="row" onClick={() => onOpen(note.path)}>
-        <span className="row-title">
-          {noteName(note.path, note.text)}
-          {note.dirty && <span className="dot" aria-label="Not synced" />}
-        </span>
-        {showPath && <span className="row-path">{note.path}</span>}
-        {showFolder && parent && (
-          <span className="row-path">
-            {displayName(parent.split("/")[0])}
-            {/* A diary entry's name has no year, so say which. */}
-            {note.path.startsWith("diary/") && /\/(\d{4})\//.test(note.path) && ` · ${/\/(\d{4})\//.exec(note.path)![1]}`}
+      <button type="button" className={icon ? "row with-icon" : "row"} onClick={() => onOpen(note.path)}>
+        {icon && <SectionIcon name={section} size={30} />}
+        <span className="row-text">
+          <span className="row-title">
+            {noteName(note.path, note.text)}
+            {note.dirty && <span className="dot" aria-label="Not synced" />}
           </span>
-        )}
+          {showPath && <span className="row-path">{note.path}</span>}
+          {showFolder && parent && (
+            <span className="row-path">
+              {displayName(parent.split("/")[0])}
+              {/* A diary entry's name has no year, so say which. */}
+              {note.path.startsWith("diary/") && /\/(\d{4})\//.test(note.path) && ` · ${/\/(\d{4})\//.exec(note.path)![1]}`}
+            </span>
+          )}
+        </span>
       </button>
     </li>
   );
