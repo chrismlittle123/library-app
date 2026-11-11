@@ -595,11 +595,29 @@ describe("moveNote", () => {
   it("recovers when GitHub commits but the response is lost", async () => {
     const { github, store } = await setup({ "ideas/a.md": "draft" });
     github.afterPush = () => { throw new GitHubError("network", "reply lost"); };
-    await expect(moveNote(github, store, "ideas/a.md", "completed/a.md", "draft")).rejects.toThrow("reply lost");
-    await syncNotes(github, store);
+    await moveNote(github, store, "ideas/a.md", "completed/a.md", "draft");
     expect(await store.get("ideas/a.md")).toBeUndefined();
     expect(await store.get("completed/a.md")).toMatchObject({ text: "draft", dirty: false });
     expect(github.files.size).toBe(1);
+  });
+
+  it("doesn't claim a move succeeded when the request never reached GitHub", async () => {
+    const { github, store } = await setup({ "ideas/a.md": "draft" });
+    github.commit = async () => { throw new GitHubError("network", "request lost"); };
+    await expect(moveNote(github, store, "ideas/a.md", "completed/a.md", "draft")).rejects.toThrow("Couldn't confirm");
+    expect(github.files.get("ideas/a.md")).toBe("draft");
+    expect(await store.get("completed/a.md")).toBeUndefined();
+  });
+
+  it("doesn't mistake a destination with different writing for a successful move", async () => {
+    const { github, store } = await setup({ "ideas/a.md": "draft" });
+    github.afterPush = () => {
+      void github.set("completed/a.md", "different writing");
+      throw new GitHubError("network", "reply lost");
+    };
+    await expect(moveNote(github, store, "ideas/a.md", "completed/a.md", "draft")).rejects.toThrow("Couldn't confirm");
+    expect(github.files.get("completed/a.md")).toBe("different writing");
+    expect(await store.get("completed/a.md")).toBeUndefined();
   });
 
   it("leaves the source intact when offline", async () => {

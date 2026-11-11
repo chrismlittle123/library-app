@@ -1,5 +1,5 @@
 import { syncNotes, type SyncResult } from "./engine";
-import { isNotePath, type GitHubApi } from "./github";
+import { GitHubError, isNotePath, type GitHubApi } from "./github";
 import type { NoteStore } from "./store";
 
 /** Run while ordinary sync and editor input are paused. Never queue a deletion. */
@@ -33,8 +33,18 @@ export async function moveNote(
   }
   // The ref update is never forced. A concurrent edit or destination creation
   // makes it fail, so both paths always change together against the checked tree.
-  await api.commit(remote, [{ path, text: null }, { path: destination, text: note.text }],
-    `phone: move ${path} to ${destination}\n\nUndo with git revert on this commit.`);
+  try {
+    await api.commit(remote, [{ path, text: null }, { path: destination, text: note.text }],
+      `phone: move ${path} to ${destination}\n\nUndo with git revert on this commit.`);
+  } catch (error) {
+    if (!(error instanceof GitHubError && error.kind === "network")) throw error;
+    // The ref update may have succeeded even though its reply never arrived.
+    // Only call it successful if both paths prove the exact move was committed.
+    const latest = await api.getTree().catch(() => null);
+    if (!latest || latest.files.has(path) || latest.files.get(destination) !== note.baseSha) {
+      throw new GitHubError("network", "Couldn't confirm the move. Sync before editing or trying again.");
+    }
+  }
 
   // GitHub has committed the move. Cache failure mustn't report a failed move;
   // a normal sync (or a relaunch) can reconstruct both clean paths from GitHub.
