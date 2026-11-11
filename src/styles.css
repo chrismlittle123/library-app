@@ -297,6 +297,31 @@ section h2,
   flex-direction: row;
   align-items: center;
   justify-content: space-between;
+  gap: 14px;
+}
+
+.row.folder .row-title {
+  flex: 1;
+}
+
+.row.with-icon {
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 14px;
+}
+
+.row-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* App-icon tiles: a lift off the page, like on a home screen. */
+.section-icon {
+  flex: none;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.35));
 }
 
 .row:active {
