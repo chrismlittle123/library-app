@@ -56,8 +56,24 @@ const API = "https://api.github.com";
 // Right after a push, GitHub can briefly answer a ref read with the commit before
 // it. Taken at face value, that looks like someone else changed every note just
 // pushed, and makes conflict copies of them. So each branch remembers the last
-// commit this app pushed, and a read that's behind it is asked again.
-const pushedHeads = new Map<string, string>();
+// commit this app pushed, and a read that's behind it is asked again. It's kept
+// in storage, because iOS often relaunches the app between a push and the next read.
+const headKey = (branchKey: string) => `vault:head:${branchKey}`;
+function lastHead(branchKey: string): string | undefined {
+  try {
+    const sha = localStorage.getItem(headKey(branchKey));
+    return sha && /^[0-9a-f]{40}$/.test(sha) ? sha : undefined;
+  } catch {
+    return undefined;
+  }
+}
+function rememberHead(branchKey: string, sha: string) {
+  try {
+    localStorage.setItem(headKey(branchKey), sha);
+  } catch {
+    // Without storage this protects only until the app closes.
+  }
+}
 const STALE_RETRIES = 5;
 const STALE_WAIT_MS = 1000;
 
@@ -76,7 +92,7 @@ export function createGitHub(config: RepoConfig, fetchFn: typeof fetch = fetch.b
     const read = () =>
       request<{ object: { sha: string } }>(`/git/ref/heads/${encodeURIComponent(config.branch)}`).then((ref) => ref.object.sha);
     let head = await read();
-    const pushed = pushedHeads.get(branchKey);
+    const pushed = lastHead(branchKey);
     for (let attempt = 0; pushed && head !== pushed && attempt < STALE_RETRIES; attempt += 1) {
       const comparison = await request<{ status: string }>(`/compare/${pushed}...${head}`).catch(
         // Gone, as after a force push: there's nothing to be behind.
@@ -88,7 +104,7 @@ export function createGitHub(config: RepoConfig, fetchFn: typeof fetch = fetch.b
     }
     // Still behind after that is a real rewind, not lag, so it's believed.
     // Caught up, or moved on past it: either way it's the head from now on.
-    pushedHeads.set(branchKey, head);
+    rememberHead(branchKey, head);
     return head;
   }
 
@@ -208,7 +224,7 @@ export function createGitHub(config: RepoConfig, fetchFn: typeof fetch = fetch.b
         }
         throw error;
       });
-      pushedHeads.set(branchKey, commit.sha);
+      rememberHead(branchKey, commit.sha);
     },
   };
 }

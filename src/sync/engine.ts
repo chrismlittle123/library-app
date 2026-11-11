@@ -3,6 +3,9 @@ import { BATCH_SIZE, GitHubError, type FileChange, type GitHubApi, type RemoteTr
 import type { NoteRecord, NoteStore } from "./store";
 
 const MAX_ATTEMPTS = 4;
+
+/** How long to wait before a second look at a conflict. Tests set it to 0. */
+export const timing = { confirmConflictMs: 2000 };
 const DOWNLOAD_CONCURRENCY = 6;
 
 export interface SyncResult {
@@ -41,8 +44,16 @@ export async function syncNotes(
   now: () => Date = () => new Date(),
 ): Promise<SyncResult> {
   const result: SyncResult = { downloaded: 0, pushed: 0, deleted: 0, keptDeletes: [], conflicts: [] };
+  let confirmed = false;
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
-    const remote = await api.getTree();
+    let remote = await api.getTree();
+    // A conflict copy is only made if a second look agrees, so a passing glitch
+    // in what GitHub reports can't make one. A real conflict is still there.
+    if (!confirmed && (await wouldConflict(store, remote))) {
+      await new Promise((resolve) => setTimeout(resolve, timing.confirmConflictMs));
+      remote = await api.getTree();
+      confirmed = true;
+    }
     await pull(api, store, remote, result, onProgress, now);
     try {
       const settled = await push(api, store, remote, result);
@@ -53,6 +64,16 @@ export async function syncNotes(
     }
   }
   throw new GitHubError("stale", "The branch kept changing. Try again in a moment.");
+}
+
+/** Whether pulling `remote` would keep both versions of a note, or bring back a deleted one. */
+async function wouldConflict(store: NoteStore, remote: RemoteTree): Promise<boolean> {
+  for (const local of await store.all()) {
+    const sha = remote.files.get(local.path);
+    if (!local.dirty || sha === undefined || local.baseSha === sha) continue;
+    if (local.deleted || (await blobSha(local.text)) !== sha) return true;
+  }
+  return false;
 }
 
 async function pull(
