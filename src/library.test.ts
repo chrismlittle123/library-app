@@ -142,6 +142,23 @@ describe("display names", () => {
   });
 });
 
+describe("diary names", () => {
+  it("names a diary entry by the days it covers", () => {
+    expect(noteName("diary/daily/2026/11/2026-11-11.md", "# 26/10-11/11\n\nWords.")).toBe("26/10-11/11");
+    expect(noteName("diary/daily/2026/11/2026-11-11.md", "# 11/11\n")).toBe("11/11");
+  });
+
+  it("falls back to the entry's date when it has no range heading", () => {
+    expect(noteName("diary/daily/2026/11/2026-11-11.md", "Just writing.")).toBe("11/11");
+    expect(noteName("diary/daily/2026/11/2026-11-11.md", "# Something else\n")).toBe("11/11");
+  });
+
+  it("names a monthly review by its month, whatever its heading", () => {
+    expect(noteName("diary/monthly/2026/2026-10.md", "October has been good.")).toBe("October 2026");
+    expect(noteName("diary/monthly/2026/2026-05.md", "# Monthly review — 2026-05")).toBe("May 2026");
+  });
+});
+
 describe("note names", () => {
   it("prefers the note's own heading, which keeps accents", () => {
     expect(noteName("recipes/alubias-espanolas.md", "# Alubias españolas\n\nBeans.")).toBe("Alubias españolas");
@@ -150,7 +167,7 @@ describe("note names", () => {
 
   it("falls back to the filename without a usable heading", () => {
     expect(noteName("inbox/gift-ideas.md", "Some text\n# Later heading")).toBe("Gift ideas");
-    expect(noteName("diary/daily/2026/11/2026-11-10.md", "# 2026-11-10\n")).toBe("Tuesday 10 November 2026");
+    expect(noteName("inbox/2026-11-10.md", "# 2026-11-10\n")).toBe("Tuesday 10 November 2026");
     expect(noteName("templates/daily.md", "# {{date:YYYY-MM-DD}}\n")).toBe("Daily");
     expect(noteName("inbox/new.md", undefined)).toBe("New");
   });
@@ -158,58 +175,39 @@ describe("note names", () => {
 
 describe("diary shortcuts", () => {
   const today = new Date(2026, 10, 10);
-  const entry = (path: string, text = "Words.") => ({ path, text });
+  const entry = (path: string) => ({ path });
 
-  it("covers everything since the last entry, filed under its first day", () => {
+  it("covers everything since the last entry, filed under today", () => {
     expect(nextDiaryEntry([entry("diary/daily/2026/10/2026-10-20.md"), entry("diary/daily/2026/10/2026-10-25.md"), entry("inbox/x.md")], today)).toEqual({
-      path: "diary/daily/2026/10/2026-10-26.md",
+      path: "diary/daily/2026/11/2026-11-10.md",
       draft: "# 26/10-10/11\n\n",
       span: "26 Oct – 10 Nov",
     });
   });
 
-  it("reads where a range entry ends from its heading, in either style", () => {
-    expect(nextDiaryEntry([entry("diary/daily/2026/10/2026-10-26.md", "# 26/10-05/11\n\nWords.")], today).path).toBe(
-      "diary/daily/2026/11/2026-11-06.md",
-    );
-    expect(nextDiaryEntry([entry("diary/daily/2026/10/2026-10-26.md", "# __26/10-09/11__\n")], today).path).toBe(
-      "diary/daily/2026/11/2026-11-10.md",
-    );
-  });
-
-  it("works out the year when a range heading crosses New Year", () => {
-    expect(nextDiaryEntry([entry("diary/daily/2025/12/2025-12-17.md", "# __17/12-02/01__")], new Date(2026, 0, 10)).path).toBe(
-      "diary/daily/2026/01/2026-01-03.md",
-    );
-  });
-
-  it("still counts the older range entries under weekly/", () => {
-    const next = nextDiaryEntry([entry("diary/daily/2026/10/2026-10-25.md"), entry("diary/weekly/2026/2026-10-26_to_2026-11-05.md")], today);
-    expect(next.path).toBe("diary/daily/2026/11/2026-11-06.md");
-  });
-
-  it("writes today's daily entry when the last one was yesterday", () => {
+  it("is a single day when the last entry was yesterday", () => {
     expect(nextDiaryEntry([entry("diary/daily/2026/11/2026-11-09.md")], today)).toEqual({
+      path: "diary/daily/2026/11/2026-11-10.md",
+      draft: "# 10/11\n\n",
+      span: "Today",
+    });
+  });
+
+  it("reopens today's entry once it's written", () => {
+    expect(nextDiaryEntry([entry("diary/daily/2026/11/2026-11-10.md")], today)).toEqual({
       path: "diary/daily/2026/11/2026-11-10.md",
       draft: "",
       span: "Today",
     });
   });
 
-  it("reopens an entry that already covers today", () => {
-    expect(nextDiaryEntry([entry("diary/daily/2026/11/2026-11-01.md", "# 01/11-10/11")], today).path).toBe(
-      "diary/daily/2026/11/2026-11-01.md",
-    );
-    expect(nextDiaryEntry([entry("diary/daily/2026/11/2026-11-10.md")], today).path).toBe("diary/daily/2026/11/2026-11-10.md");
-  });
-
-  it("ignores dates in the future and starts with today when there's nothing", () => {
-    expect(nextDiaryEntry([entry("diary/daily/2027/01/2027-01-01.md")], today).path).toBe("diary/daily/2026/11/2026-11-10.md");
+  it("ignores dates in the future, and starts with today when there's nothing", () => {
+    expect(nextDiaryEntry([entry("diary/daily/2027/01/2027-01-01.md")], today).draft).toBe("# 10/11\n\n");
   });
 
   it("crosses a month and a year", () => {
     const next = nextDiaryEntry([entry("diary/daily/2026/12/2026-12-29.md")], new Date(2027, 0, 3));
-    expect(next.path).toBe("diary/daily/2026/12/2026-12-30.md");
+    expect(next.path).toBe("diary/daily/2027/01/2027-01-03.md");
     expect(next.draft).toBe("# 30/12-03/01\n\n");
   });
 

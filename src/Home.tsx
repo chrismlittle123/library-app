@@ -317,7 +317,13 @@ function NoteRow({
           {note.dirty && <span className="dot" aria-label="Not synced" />}
         </span>
         {showPath && <span className="row-path">{note.path}</span>}
-        {showFolder && parent && <span className="row-path">{displayName(parent.split("/")[0])}</span>}
+        {showFolder && parent && (
+          <span className="row-path">
+            {displayName(parent.split("/")[0])}
+            {/* A diary entry's name has no year, so say which. */}
+            {note.path.startsWith("diary/") && /\/(\d{4})\//.test(note.path) && ` · ${/\/(\d{4})\//.exec(note.path)![1]}`}
+          </span>
+        )}
       </button>
     </li>
   );
