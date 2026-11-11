@@ -1,3 +1,4 @@
+import { moveNote } from "./move";
 import { blobSha, decodeBase64 } from "./blob";
 import { conflictCopyPath, deletionMessage, syncNotes, timing } from "./engine";
 import { GitHubError, type FileChange, type GitHubApi, type RemoteTree, createGitHub, isNotePath } from "./github";
@@ -534,5 +535,78 @@ describe("isNotePath", () => {
     expect(isNotePath(".obsidian/a.md")).toBe(false);
     expect(isNotePath("catalogues/.index/a.md")).toBe(false);
     expect(isNotePath("wines.json")).toBe(false);
+  });
+});
+
+
+describe("moveNote", () => {
+  it("syncs unsaved writing, then changes both paths in a separate commit", async () => {
+    const { github, store } = await setup({ "ideas/a.md": "draft" });
+    await edit(store, "ideas/a.md", "finished writing");
+    await moveNote(github, store, "ideas/a.md", "completed/a.md", "finished writing");
+    expect(github.files.has("ideas/a.md")).toBe(false);
+    expect(github.files.get("completed/a.md")).toBe("finished writing");
+    expect(github.commits[github.commits.length - 1]).toEqual([
+      { path: "ideas/a.md", text: null }, { path: "completed/a.md", text: "finished writing" },
+    ]);
+    expect(github.messages[github.messages.length - 1]).toMatch(/^phone: move ideas\/a.md to completed\/a.md/);
+    expect(await store.get("ideas/a.md")).toBeUndefined();
+    expect(await store.get("completed/a.md")).toMatchObject({ text: "finished writing", dirty: false });
+  });
+
+  it("doesn't overwrite a destination created remotely", async () => {
+    const { github, store } = await setup({ "ideas/a.md": "draft" });
+    await github.set("completed/a.md", "existing");
+    await expect(moveNote(github, store, "ideas/a.md", "completed/a.md", "draft")).rejects.toThrow("already exists");
+    expect(github.files.get("ideas/a.md")).toBe("draft");
+    expect(github.files.get("completed/a.md")).toBe("existing");
+  });
+
+  it("stops if sync discovers a newer source", async () => {
+    const { github, store } = await setup({ "ideas/a.md": "draft" });
+    await github.set("ideas/a.md", "newer");
+    await expect(moveNote(github, store, "ideas/a.md", "completed/a.md", "draft")).rejects.toThrow("changed");
+    expect(github.files.get("ideas/a.md")).toBe("newer");
+    expect(github.files.has("completed/a.md")).toBe(false);
+  });
+
+  it("refuses the whole move if the branch changes during the commit", async () => {
+    const { github, store } = await setup({ "ideas/a.md": "draft" });
+    github.beforeCommit = () => { void github.set("completed/a.md", "arrived during move"); };
+    await expect(moveNote(github, store, "ideas/a.md", "completed/a.md", "draft")).rejects.toThrow("moved");
+    expect(github.files.get("ideas/a.md")).toBe("draft");
+    expect(github.files.get("completed/a.md")).toBe("arrived during move");
+    expect((await store.get("ideas/a.md"))?.dirty).toBe(false);
+  });
+
+  it("recovers after the commit when local storage couldn't record the move", async () => {
+    const { github, store } = await setup({ "ideas/a.md": "draft" });
+    const update = store.update.bind(store);
+    github.afterPush = () => { store.update = async () => { throw new Error("storage unavailable"); }; };
+    await moveNote(github, store, "ideas/a.md", "completed/a.md", "draft");
+    store.update = update;
+    await syncNotes(github, store);
+    expect(await store.get("ideas/a.md")).toBeUndefined();
+    expect(await store.get("completed/a.md")).toMatchObject({ text: "draft", dirty: false });
+    expect(github.files.has("ideas/a.md")).toBe(false);
+    expect(github.files.size).toBe(1);
+  });
+
+  it("recovers when GitHub commits but the response is lost", async () => {
+    const { github, store } = await setup({ "ideas/a.md": "draft" });
+    github.afterPush = () => { throw new GitHubError("network", "reply lost"); };
+    await expect(moveNote(github, store, "ideas/a.md", "completed/a.md", "draft")).rejects.toThrow("reply lost");
+    await syncNotes(github, store);
+    expect(await store.get("ideas/a.md")).toBeUndefined();
+    expect(await store.get("completed/a.md")).toMatchObject({ text: "draft", dirty: false });
+    expect(github.files.size).toBe(1);
+  });
+
+  it("leaves the source intact when offline", async () => {
+    const { github, store } = await setup({ "ideas/a.md": "draft" });
+    github.getTree = async () => { throw new GitHubError("network", "offline"); };
+    await expect(moveNote(github, store, "ideas/a.md", "completed/a.md", "draft")).rejects.toThrow("offline");
+    expect(github.files.get("ideas/a.md")).toBe("draft");
+    expect((await store.get("ideas/a.md"))?.deleted).toBeFalsy();
   });
 });

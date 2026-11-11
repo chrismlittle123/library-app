@@ -261,6 +261,23 @@ input:focus {
   gap: 10px;
 }
 
+.move-dialog {
+  width: min(420px, calc(100vw - 32px));
+  max-height: calc(100dvh - 40px);
+  overflow: auto;
+  padding: 22px;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+}
+
+.move-dialog::backdrop { background: rgb(0 0 0 / 45%); }
+.move-dialog form { display: flex; flex-direction: column; gap: 14px; }
+.move-dialog h2, .move-dialog p { margin: 0; }
+.move-dialog select { width: 100%; min-height: 44px; font: inherit; }
+.move-dialog [role="alert"] { color: var(--danger); }
+
 section h2,
 .list-heading {
   margin: 16px 16px 4px;

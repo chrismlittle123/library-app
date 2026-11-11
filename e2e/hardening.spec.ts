@@ -344,3 +344,47 @@ test("disconnecting during a sync still erases the phone copy", async ({ page })
   const databases = await page.evaluate(() => indexedDB.databases());
   expect(databases.map((db) => db.name)).toEqual([]);
 });
+
+
+test("moving a note saves the last keystrokes, follows the new path, and survives reload", async ({ page }) => {
+  await connect(page);
+  await openRecipe(page, "Tomato soup");
+  await editor(page).click();
+  await page.keyboard.press("ControlOrMeta+End");
+  await page.keyboard.type(" Finished.");
+  await button(page, "Move note").click();
+  await page.getByLabel("Destination folder").selectOption("workshop");
+  await button(page, "Move").click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(editor(page)).toContainText("Finished.");
+  expect(github.read(TOMATO)).toBeUndefined();
+  expect(github.read("workshop/tomato-soup.md")).toContain("Finished.");
+  expect(github.messages.filter((message) => message.startsWith("phone: move"))).toHaveLength(1);
+  await editor(page).click();
+  await page.keyboard.press("ControlOrMeta+End");
+  await page.keyboard.type(" More.");
+  await button(page, "Back").click();
+  await expect(button(page, "Tomato soup")).toBeVisible();
+  await expect(synced(page)).toBeVisible();
+  expect(github.read("workshop/tomato-soup.md")).toContain("Finished. More.");
+  await page.reload();
+  await expect(synced(page)).toBeVisible();
+  await button(page, /^Workshop/).click();
+  await button(page, "Tomato soup").click();
+  await expect(editor(page)).toContainText("Finished. More.");
+  expect(github.read(TOMATO)).toBeUndefined();
+});
+
+test("a move collision shows an error and preserves both notes", async ({ page }) => {
+  github.write("workshop/tomato-soup.md", "# Existing soup\n");
+  await connect(page);
+  await openRecipe(page, "Tomato soup");
+  await button(page, "Move note").click();
+  await page.getByLabel("Destination folder").selectOption("workshop");
+  await button(page, "Move").click();
+  await expect(page.getByRole("dialog").getByRole("alert")).toContainText("already exists");
+  expect(github.read(TOMATO)).toContain("Simmer.");
+  expect(github.read("workshop/tomato-soup.md")).toBe("# Existing soup\n");
+  await button(page, "Cancel").click();
+  await expect(editor(page)).toContainText("Simmer.");
+});

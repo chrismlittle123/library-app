@@ -94,7 +94,7 @@ function Connected({
   onReplaceKey: (token: string) => void;
   onDisconnect: () => void;
 }) {
-  const { notes, pendingDeletes, remove, loaded, status, edit, syncNow, conflicts, keptDeletes, clearConflicts } =
+  const { notes, pendingDeletes, remove, move, loaded, status, edit, syncNow, conflicts, keptDeletes, clearConflicts } =
     useSync(config, store);
   const [screen, setScreen] = useState<Screen>({ name: "home" });
   const [tab, setTab] = useState<Tab>("library");
@@ -177,6 +177,13 @@ function Connected({
           onDelete={async () => {
             await remove([screen.path]);
             goHome();
+          }}
+          paths={notes.map((note) => note.path)}
+          onMove={async (destination, text) => {
+            await move(screen.path, destination, text);
+            setRecent(addRecent(destination));
+            setFolder(destination.split("/").slice(0, -1).join("/"));
+            setScreen({ name: "note", path: destination, draft: text });
           }}
           autoFocus={!record}
         />

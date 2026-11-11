@@ -33,6 +33,12 @@ export const TrashIcon = () => (
   </Icon>
 );
 
+export const MoveIcon = () => (
+  <Icon>
+    <path d="M3 8V5h6l2 3h10v11H3v-4M2 11h11m-3-3 3 3-3 3" />
+  </Icon>
+);
+
 export const SettingsIcon = () => (
   <Icon>
     <path d="M4 7h10M18 7h2M4 17h4M12 17h8" />
