@@ -2,6 +2,7 @@ import { redo, undo } from "@codemirror/commands";
 import { type EditorState, Transaction, type TransactionSpec } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { useEffect, useRef, useState } from "react";
+import { HomeButton } from "./Navigation";
 import { MoveNote } from "./MoveNote";
 import { SaveQueue } from "./saveQueue";
 import { insertLink, toggleLinePrefix, toggleWrap } from "./commands";
@@ -22,7 +23,7 @@ import {
   RedoIcon,
   UndoIcon,
 } from "./icons";
-import { isGenerated, leadingHeading, noteName } from "./library";
+import { displayName, isGenerated, leadingHeading, noteName } from "./library";
 
 // Past this, the note's own heading has scrolled away and the bar takes over naming it.
 const TITLE_SCROLL_PX = 48;
@@ -38,6 +39,7 @@ interface Props {
   readStored: () => Promise<NoteRecord | undefined>;
   onSave: (text: string, editedFrom: string) => Promise<void>;
   onBack: () => void;
+  onHome: () => void;
   /** Deletes the note here, and from GitHub on the next sync. */
   onDelete: () => Promise<void>;
   paths: string[];
@@ -45,7 +47,7 @@ interface Props {
   autoFocus: boolean;
 }
 
-export function Editor({ path, text, record, readStored, onSave, onBack, onDelete, paths, onMove, autoFocus }: Props) {
+export function Editor({ path, text, record, readStored, onSave, onBack, onHome, onDelete, paths, onMove, autoFocus }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
   const [mode, setModeState] = useState<Mode>(loadMode);
@@ -202,6 +204,12 @@ export function Editor({ path, text, record, readStored, onSave, onBack, onDelet
     state = "pending";
   }
 
+  const leave = (navigate: () => void) => {
+    void flush.current().then(() => {
+      if (!queue.hasUnsaved) navigate();
+    });
+  };
+
   return (
     <>
       <header className="bar">
@@ -209,12 +217,7 @@ export function Editor({ path, text, record, readStored, onSave, onBack, onDelet
           type="button"
           className="tool"
           aria-label="Back"
-          onClick={() => {
-            void flush.current().then(() => {
-              // If it couldn't be saved, leaving now would lose the text.
-              if (!queue.hasUnsaved) onBack();
-            });
-          }}
+          onClick={() => leave(onBack)}
         >
           <BackIcon />
         </button>
@@ -224,13 +227,17 @@ export function Editor({ path, text, record, readStored, onSave, onBack, onDelet
         <span className="status" role="status" data-status={state}>
           {label}
         </span>
+        <HomeButton onClick={() => leave(onHome)} />
+      </header>
+      <div className="note-location">
+        <span className="note-folder">{path.split("/").slice(0, -1).map((_, i, parts) => displayName(parts.slice(0, i + 1).join("/"))).join(" / ") || "Library"}</span>
         <button type="button" className="tool" aria-pressed={mode === "hidden"} onClick={toggleMode}>
           <span aria-hidden="true">Aa</span>
           <span className="sr-only">Hide markdown symbols</span>
         </button>
         {!readOnly && record && (
-          <button type="button" className="tool" aria-label="Move note" onClick={() => setMoving(true)}>
-            <MoveIcon />
+          <button type="button" className="tool move-tool" aria-label="Move note" onClick={() => setMoving(true)}>
+            <MoveIcon /><span>Move</span>
           </button>
         )}
         {!readOnly && record && (
@@ -238,7 +245,7 @@ export function Editor({ path, text, record, readStored, onSave, onBack, onDelet
             <TrashIcon />
           </button>
         )}
-      </header>
+      </div>
       {moving && <MoveNote path={path} paths={paths} onClose={() => setMoving(false)}
         onMove={async (destination) => {
           await flush.current();

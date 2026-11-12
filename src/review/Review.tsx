@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { HomeButton } from "../Navigation";
 import { CloseIcon } from "../icons";
 import { prettify } from "../library";
 import { createGitHub, type RepoConfig } from "../sync/github";
@@ -23,8 +24,8 @@ function shuffle<T>(xs: T[]): T[] {
   return a;
 }
 
-/** `tabs` is hidden during a session, so one can't be left by accident: the × logs it first. */
-export function Review({ config, tabs }: { config: RepoConfig; tabs: ReactNode }) {
+/** The tabs stay hidden during a session. Exit and Home both preserve answered grades. */
+export function Review({ config, tabs, onHome }: { config: RepoConfig; tabs: ReactNode; onHome: () => void }) {
   const [cards, setCards] = useState<Card[]>(() => loadDeck() ?? []);
   const [states, setStates] = useState<Record<string, CardState>>(() => loadStates());
   const [sync, setSync] = useState<SyncStatus>("loading");
@@ -118,6 +119,15 @@ export function Review({ config, tabs }: { config: RepoConfig; tabs: ReactNode }
     else setPhase("start");
   }
 
+  function home() {
+    if (phase === "review" && grades.length > 0) {
+      const rec = record(tally, grades);
+      upsertPending(rec);
+      void publishSession(rec).then((synced) => { if (synced) removePending(rec.session_id); });
+    }
+    onHome();
+  }
+
   function answer(rating: Rating) {
     const card = queue[idx];
     let t = tally;
@@ -159,6 +169,7 @@ export function Review({ config, tabs }: { config: RepoConfig; tabs: ReactNode }
             <CloseIcon />
           </button>
           <span className="review-progress">{progressLabel(queue, idx, grades)}</span>
+          <HomeButton onClick={home} />
         </header>
         <section
           className="review-card"
@@ -199,6 +210,7 @@ export function Review({ config, tabs }: { config: RepoConfig; tabs: ReactNode }
 
   const bar = (
     <header className="bar">
+      <HomeButton onClick={home} />
       <h1 className="bar-title">Flashcards</h1>
       {cards.length > 0 && <span className="status">{plural(cards.length, "card")}</span>}
     </header>

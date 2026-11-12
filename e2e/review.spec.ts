@@ -148,3 +148,22 @@ test("disconnecting removes the cards from the phone", async ({ page }) => {
   expect(await page.evaluate(() => localStorage.getItem("flashcards.deck.v1"))).toBeNull();
   expect(await page.evaluate(() => localStorage.getItem("flashcards.serverKey.v1"))).toBeNull();
 });
+
+test("Home leaves flashcards and clears an earlier library search", async ({ page }) => {
+  await page.getByLabel("Search notes").fill("idea");
+  await button(page, "Flashcards").click();
+  await button(page, "Home").click();
+  await expect(page.getByLabel("Search notes")).toHaveValue("");
+  await expect(button(page, /^Inbox/)).toBeVisible();
+});
+
+test("Home during a review preserves grades and returns to the library", async ({ page }) => {
+  await button(page, "Flashcards").click();
+  await button(page, "Start review").click();
+  await grade(page, "Good");
+  await button(page, "Home").click();
+  await expect(page.getByLabel("Search notes")).toBeVisible();
+  await expect.poll(() => log.length).toBe(1);
+  expect(log[0].graded).toBe(1);
+  expect(log[0].good).toBe(1);
+});

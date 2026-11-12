@@ -108,11 +108,18 @@ function Connected({
     setScreen(draft === undefined ? { name: "note", path } : { name: "note", path, draft });
   };
 
-  const goHome = useCallback(() => {
+  const goBack = useCallback(() => {
     setScreen({ name: "home" });
     // Leaving a note is a natural moment to push it, without waiting.
     window.setTimeout(() => void syncNow(), 300);
   }, [syncNow]);
+
+  const goHome = useCallback(() => {
+    setQuery("");
+    setFolder("");
+    setTab("library");
+    goBack();
+  }, [goBack]);
 
   const openDraft = (path: string, draft: string) => {
     openNote(path, notes.some((note) => note.path === path) ? undefined : draft);
@@ -155,6 +162,7 @@ function Connected({
         config={config}
         unsynced={notes.filter((note) => note.dirty).length}
         onBack={() => setScreen({ name: "home" })}
+        onHome={goHome}
         onReplaceKey={onReplaceKey}
         onDisconnect={onDisconnect}
       />
@@ -173,10 +181,11 @@ function Connected({
           record={record}
           readStored={readStored}
           onSave={save}
-          onBack={goHome}
+          onBack={goBack}
+          onHome={goHome}
           onDelete={async () => {
             await remove([screen.path]);
-            goHome();
+            goBack();
           }}
           paths={notes.map((note) => note.path)}
           onMove={async (destination, text) => {
@@ -199,7 +208,7 @@ function Connected({
           type="button"
           className="tab"
           aria-current={tab === item ? "page" : undefined}
-          onClick={() => setTab(item)}
+          onClick={() => item === "library" ? goHome() : setTab(item)}
         >
           {item === "library" ? "Library" : "Flashcards"}
         </button>
@@ -207,7 +216,7 @@ function Connected({
     </nav>
   );
 
-  if (tab === "review") return <Review config={config} tabs={tabs} />;
+  if (tab === "review") return <Review config={config} tabs={tabs} onHome={goHome} />;
 
   return (
     <>
@@ -226,6 +235,7 @@ function Connected({
         onWrite={openDraft}
         onCreate={(path) => openDraft(path, `# ${noteTitle(path)}\n\n`)}
         onSync={() => void syncNow()}
+        onHome={goHome}
         onSettings={() => setScreen({ name: "settings" })}
       />
       {tabs}

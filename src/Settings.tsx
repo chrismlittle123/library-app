@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { HomeButton } from "./Navigation";
 import { BackIcon } from "./icons";
 import { GitHubError, createGitHub, type RepoConfig } from "./sync/github";
 
@@ -6,11 +7,12 @@ interface Props {
   config: RepoConfig;
   unsynced: number;
   onBack: () => void;
+  onHome: () => void;
   onReplaceKey: (token: string) => void;
   onDisconnect: () => void;
 }
 
-export function Settings({ config, unsynced, onBack, onReplaceKey, onDisconnect }: Props) {
+export function Settings({ config, unsynced, onBack, onHome, onReplaceKey, onDisconnect }: Props) {
   const [confirming, setConfirming] = useState(false);
   const [token, setToken] = useState("");
   const [checking, setChecking] = useState(false);
@@ -35,6 +37,7 @@ export function Settings({ config, unsynced, onBack, onReplaceKey, onDisconnect 
           <BackIcon />
         </button>
         <h1 className="bar-title">Settings</h1>
+        <HomeButton onClick={onHome} />
       </header>
       <main className="list">
         <dl className="facts">
