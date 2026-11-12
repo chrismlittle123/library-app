@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { HomeButton } from "../Navigation";
-import { CloseIcon } from "../icons";
 import { prettify } from "../library";
 import { createGitHub, type RepoConfig } from "../sync/github";
 import { publishSession } from "./api";
@@ -166,7 +165,7 @@ export function Review({ config, tabs, onHome }: { config: RepoConfig; tabs: Rea
       <main className="review">
         <header className="review-bar">
           <button type="button" className="tool" aria-label="Exit review" onClick={exit}>
-            <CloseIcon />
+            Exit
           </button>
           <span className="review-progress">{progressLabel(queue, idx, grades)}</span>
           <HomeButton onClick={home} />

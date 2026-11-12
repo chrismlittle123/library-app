@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { HomeButton } from "./Navigation";
-import { BackIcon } from "./icons";
 import { GitHubError, createGitHub, type RepoConfig } from "./sync/github";
 
 interface Props {
@@ -34,7 +33,7 @@ export function Settings({ config, unsynced, onBack, onHome, onReplaceKey, onDis
     <>
       <header className="bar">
         <button type="button" className="tool" aria-label="Back" onClick={onBack}>
-          <BackIcon />
+          Back
         </button>
         <h1 className="bar-title">Settings</h1>
         <HomeButton onClick={onHome} />

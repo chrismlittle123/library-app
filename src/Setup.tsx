@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { BookIcon } from "./icons";
 import { GitHubError, createGitHub, type RepoConfig } from "./sync/github";
 
 const TOKEN_URL = "https://github.com/settings/personal-access-tokens/new";
@@ -59,7 +58,6 @@ export function Setup({ onConnected }: { onConnected: (config: RepoConfig) => vo
     <>
       <main className="list">
         <header className="welcome">
-          <BookIcon />
           <h1>Library</h1>
           <p>Your notes and flashcards, kept in GitHub.</p>
         </header>
