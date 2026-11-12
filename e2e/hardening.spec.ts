@@ -388,3 +388,85 @@ test("a move collision shows an error and preserves both notes", async ({ page }
   await button(page, "Cancel").click();
   await expect(editor(page)).toContainText("Simmer.");
 });
+
+test("Home clears search and folder navigation, while Back keeps search results", async ({ page }) => {
+  await connect(page);
+  await button(page, /^Catalogues/).click();
+  await button(page, /^Recipes/).click();
+  await page.getByLabel("Search notes").fill("potatoes");
+  await button(page, /^Roast potatoes/).click();
+  await button(page, "Back").click();
+  await expect(page.getByLabel("Search notes")).toHaveValue("potatoes");
+  await button(page, "Home").click();
+  await expect(page.getByLabel("Search notes")).toHaveValue("");
+  await expect(button(page, /^Catalogues/)).toBeVisible();
+  await expect(button(page, /^Workshop/)).toBeVisible();
+  await expect(button(page, "Up a folder")).toHaveCount(0);
+  await button(page, "Settings").click();
+  await button(page, "Home").click();
+  await expect(button(page, /^Catalogues/)).toBeVisible();
+});
+
+test("Home saves the last keystrokes and leaves a search result for the library root", async ({ page }) => {
+  await connect(page);
+  await page.getByLabel("Search notes").fill("potatoes");
+  await button(page, /^Roast potatoes/).click();
+  await editor(page).click();
+  await page.keyboard.press("ControlOrMeta+End");
+  await page.keyboard.type(" Saved by Home.");
+  await button(page, "Home").click();
+  await expect(page.getByLabel("Search notes")).toHaveValue("");
+  await expect(button(page, /^Catalogues/)).toBeVisible();
+  await expect(synced(page)).toBeVisible();
+  expect(github.read(POTATO)).toContain("Saved by Home.");
+});
+
+test("Home keeps the editor open if the writing couldn't be saved", async ({ page }) => {
+  await page.addInitScript(BREAKABLE_STORAGE);
+  await connect(page);
+  await openRecipe(page, "Tomato soup");
+  await setStorageDown(page, true);
+  await typeAtStart(page, "keep these words ");
+  await expect(status(page)).toHaveText("Couldn't save");
+  await button(page, "Home").click();
+  await expect(editor(page)).toContainText("keep these words");
+  await expect(page.getByLabel("Search notes")).toHaveCount(0);
+  await setStorageDown(page, false);
+  await button(page, "Home").click();
+  await expect(synced(page)).toBeVisible();
+  expect(github.read(TOMATO)).toContain("keep these words");
+});
+
+test("Move is visible and can move a note into a nested completed folder", async ({ page }) => {
+  github.write("workshop/completed/blog-posts/another.md", "# Another post\n");
+  await connect(page);
+  await openRecipe(page, "Tomato soup");
+  await expect(button(page, "Move note")).toContainText("Move");
+  await button(page, "Move note").click();
+  await page.getByLabel("Destination folder").selectOption("workshop/completed/blog-posts");
+  await button(page, "Move").click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.locator(".note-folder")).toHaveText("Workshop / Completed / Blog posts");
+  expect(github.read("workshop/completed/blog-posts/tomato-soup.md")).toContain("Simmer.");
+  expect(github.read(TOMATO)).toBeUndefined();
+  await button(page, "Home").click();
+  await expect(button(page, /^Workshop/)).toBeVisible();
+});
+
+test("the redesigned shelves fit a small phone and Home stays visible", async ({ page }, testInfo) => {
+  github.write("knowledge/ideas.md", "# Ideas\n");
+  github.write("diary/daily/2026/11/2026-11-11.md", "# 11/11\n");
+  await page.setViewportSize({ width: 320, height: 568 });
+  await connect(page);
+  const titles = page.locator(".shelf-grid .folder .row-title");
+  await expect(titles).toHaveCount(4);
+  expect(await titles.evaluateAll((items) => items.every((item) => item.scrollWidth <= item.clientWidth))).toBe(true);
+  await expect(button(page, "Home")).toBeInViewport();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath("home-320.png") });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openRecipe(page, "Tomato soup");
+  await button(page, "Home").click();
+  await expect(synced(page)).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("home-390.png") });
+});

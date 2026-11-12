@@ -1,114 +1,80 @@
-import { useId } from "react";
-
-// App-icon tiles for the library's top-level shelves: a rounded square with a
-// lit-from-above gradient and a drawn glyph, in colours from the same warm palette.
-interface Section {
-  top: string;
-  bottom: string;
-  glyph: JSX.Element;
-}
-
-const SECTIONS: Record<string, Section> = {
-  diary: {
-    top: "#9a4636",
-    bottom: "#5c1f17",
-    glyph: (
-      <>
-        {/* A bound journal: spine, a label on the cover, and its ribbon hanging out. */}
-        <path d="M13 9.5h13.5a2 2 0 0 1 2 2v17.5a2 2 0 0 1-2 2H13z" />
-        <path d="M13 9.5a2 2 0 0 0-2 2v17.5a2 2 0 0 0 2 2" />
-        <rect x="17.5" y="14" width="7.5" height="4.5" rx="1" />
-        <path d="M22 31v4.5l1.7-1.4 1.7 1.4V31" />
-      </>
-    ),
-  },
+// Small illustrations, drawn as filled objects so their silhouettes survive at
+// note-row size. The muted grounds share the library's ink-and-paper palette.
+const SECTIONS = {
   catalogues: {
-    top: "#d4974a",
-    bottom: "#8f5a1e",
-    glyph: (
-      <>
-        {/* Books standing on a shelf, the last one leaning. */}
-        <rect x="10.5" y="12" width="5" height="17.5" rx="1" />
-        <rect x="16.5" y="9.5" width="5" height="20" rx="1" />
-        <path d="M10.5 16h5M16.5 13.5h5M10.5 25.5h5M16.5 25.5h5" opacity="0.7" />
-        <path d="M23.5 14.2l4.6-1.4 4.4 15.2-4.6 1.4z" />
-        <path d="M8.5 29.5h23" />
-      </>
-    ),
+    ground: "#30291e",
+    art: <>
+      <path d="M10 48h44" stroke="#bdaa84" strokeWidth="2" strokeLinecap="round" />
+      <rect x="12" y="20" width="10" height="27" rx="2" fill="#cf9e58" />
+      <path d="M15 23v21" stroke="#f0d8a6" strokeWidth="1.5" />
+      <path d="M17 26h3m-3 15h3" stroke="#77522d" strokeWidth="1.5" />
+      <rect x="24" y="14" width="12" height="33" rx="2" fill="#abb7a0" />
+      <path d="M27 17v27" stroke="#d9dfcb" strokeWidth="1.5" />
+      <path d="M30 21h3m-3 19h3" stroke="#64745e" strokeWidth="1.5" />
+      <g transform="rotate(-14 46 46)"><rect x="40" y="21" width="10" height="26" rx="2" fill="#c17e6d" /><path d="M43 24v20m2-17h3m-3 13h3" stroke="#efc3a8" strokeWidth="1.5" /></g>
+    </>,
+  },
+  diary: {
+    ground: "#342329",
+    art: <>
+      <path d="M18 13h27a3 3 0 0 1 3 3v33H20a5 5 0 0 1-5-5V18a5 5 0 0 1 3-5" fill="#8c4b51" />
+      <path d="M20 13v32" stroke="#d68e88" strokeWidth="2" />
+      <path d="M20 44h27v7H20a3.5 3.5 0 0 1 0-7" fill="#e8d9b9" />
+      <path d="M22 47h22" stroke="#b4a483" strokeWidth="1" />
+      <path d="M36 45h6v12l-3-2-3 2z" fill="#c99550" />
+      <rect x="27" y="22" width="14" height="10" rx="1" fill="none" stroke="#d5a59a" strokeWidth="1.2" />
+      <path d="M31 27h6" stroke="#e2c5ac" strokeWidth="1.4" strokeLinecap="round" />
+    </>,
   },
   knowledge: {
-    top: "#7f8d55",
-    bottom: "#454f28",
-    glyph: (
-      <>
-        {/* A lamp: the thing you know, lit. */}
-        <path d="M16.2 25.5c-2.4-1.7-3.9-4.3-3.9-7.2a7.7 7.7 0 0 1 15.4 0c0 2.9-1.5 5.5-3.9 7.2v2.3h-7.6z" />
-        <path d="M16.6 31h6.8" />
-        <path d="M17.6 21.8l1.2-2.6 1.2 1.6 1.2-1.6 1.2 2.6" opacity="0.75" />
-      </>
-    ),
+    ground: "#262e27",
+    art: <>
+      <path d="m24 27-8 19h35l-8-19" fill="#e0b65c" opacity=".12" />
+      <path d="M36 29v19m-9 3h19" stroke="#acb49a" strokeWidth="3" strokeLinecap="round" />
+      <path d="m25 16-9 17h35L42 16z" fill="#94a18b" />
+      <path d="m25 16-7 14h8l4-14z" fill="#bec8ab" />
+      <path d="M15 33h37" stroke="#e5cf9b" strokeWidth="2" strokeLinecap="round" />
+      <path d="M31 39h9" stroke="#e8c77e" strokeWidth="1.5" strokeLinecap="round" opacity=".7" />
+      <path d="M22 52h29" stroke="#5b6b58" strokeWidth="2" strokeLinecap="round" />
+    </>,
   },
   workshop: {
-    top: "#5e7290",
-    bottom: "#2d394d",
-    glyph: (
-      <>
-        {/* A pencil laid across a ruler. */}
-        <path d="M10 26.5l16.5-16.5 3.5 3.5L13.5 30H10z" />
-        <path d="M23.5 13l3.5 3.5" />
-        <path d="M10 33.5h20" opacity="0.7" />
-        <path d="M14 33.5v-2M18 33.5v-1.4M22 33.5v-2M26 33.5v-1.4" opacity="0.7" />
-      </>
-    ),
+    ground: "#242c35",
+    art: <>
+      <path d="M17 14h23l8 8v29H17z" fill="#bac7cc" />
+      <path d="M40 14v9h8" fill="#8297a4" />
+      <path d="M23 40h14m-14 5h9" stroke="#8297a4" strokeWidth="1.5" strokeLinecap="round" />
+      <g transform="rotate(34 35 30)">
+        <rect x="31" y="9" width="8" height="24" rx="3" fill="#c89156" />
+        <path d="M31 16h8" stroke="#efd2a0" strokeWidth="2" />
+        <path d="m31 33 4 13 4-13z" fill="#f0d9ab" />
+        <path d="M35 34v9" stroke="#665444" strokeWidth="1" />
+        <circle cx="35" cy="34" r="1.3" fill="#665444" />
+      </g>
+    </>,
   },
   inbox: {
-    top: "#8b7b67",
-    bottom: "#4e4336",
-    glyph: (
-      <>
-        {/* A tray, with something just put in it. */}
-        <path d="M9.5 22l3-10.5h15l3 10.5v7a2 2 0 0 1-2 2h-17a2 2 0 0 1-2-2z" />
-        <path d="M9.5 22h6l1.5 3h6l1.5-3h6" />
-        <path d="M16 16.5h8" opacity="0.7" />
-      </>
-    ),
+    ground: "#302b25",
+    art: <>
+      <path d="M21 16h25v27H21z" fill="#ddd2b6" transform="rotate(8 33 30)" />
+      <path d="M25 24h14m-14 5h10" stroke="#a49b85" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="m13 32 4-10h6v10h24V22h3l4 10v18H13z" fill="#b18c65" />
+      <path d="M13 33h13l3 6h9l3-6h13v17H13z" fill="#c5a581" />
+      <path d="M29 44h10" stroke="#755d44" strokeWidth="2" strokeLinecap="round" />
+    </>,
   },
 };
 
-export function hasSectionIcon(name: string): boolean {
-  return name in SECTIONS;
+type SectionName = keyof typeof SECTIONS;
+export function hasSectionIcon(name: string): name is SectionName {
+  return Object.prototype.hasOwnProperty.call(SECTIONS, name);
 }
 
-export function SectionIcon({ name, size = 40 }: { name: string; size?: number }) {
-  const id = useId();
+export function SectionIcon({ name, size = 48 }: { name: string; size?: number }) {
+  if (!hasSectionIcon(name)) return null;
   const section = SECTIONS[name];
-  if (!section) return null;
-  return (
-    <svg className="section-icon" viewBox="0 0 40 40" width={size} height={size} aria-hidden="true">
-      <defs>
-        <linearGradient id={`${id}-fill`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor={section.top} />
-          <stop offset="1" stopColor={section.bottom} />
-        </linearGradient>
-        {/* The soft sheen across the top that makes it read as an icon, not a swatch. */}
-        <linearGradient id={`${id}-sheen`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#fff" stopOpacity="0.22" />
-          <stop offset="0.5" stopColor="#fff" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <rect width="40" height="40" rx="9.5" fill={`url(#${id}-fill)`} />
-      <rect width="40" height="40" rx="9.5" fill={`url(#${id}-sheen)`} />
-      <rect x="0.5" y="0.5" width="39" height="39" rx="9" fill="none" stroke="#fff" strokeOpacity="0.12" />
-      <g
-        fill="none"
-        stroke="#f6ead6"
-        strokeWidth="1.9"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        style={{ filter: "drop-shadow(0 1px 0.6px rgba(0,0,0,0.35))" }}
-      >
-        {section.glyph}
-      </g>
-    </svg>
-  );
+  return <svg className="section-icon" viewBox="0 0 64 64" width={size} height={size} aria-hidden="true">
+    <rect x="1" y="1" width="62" height="62" rx="17" fill={section.ground} />
+    {section.art}
+  </svg>;
 }

@@ -1,8 +1,9 @@
-import { useDeferredValue, useMemo, useRef, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { NoteSearch } from "./search";
 import type { NoteRecord } from "./sync/store";
 import type { SyncStatus } from "./useSync";
-import { BackIcon, SettingsIcon } from "./icons";
+import { HomeButton } from "./Navigation";
+import { ArrowIcon, BackIcon, SearchIcon, SettingsIcon } from "./icons";
 import { SectionIcon, hasSectionIcon } from "./sectionIcons";
 import { displayName, dueMonthlyReview, isConflictCopy, listFolder, newNotePath, nextDiaryEntry, noteName } from "./library";
 
@@ -21,6 +22,7 @@ interface Props {
   onCreate: (path: string) => void;
   onSync: () => void;
   onSettings: () => void;
+  onHome: () => void;
   /** Paths of notes opened on this phone, most recent first. */
   recent: string[];
   /** Deletions made here that haven't reached GitHub yet. */
@@ -57,10 +59,13 @@ export function Home(props: Props) {
     onCreate,
     onSync,
     onSettings,
+    onHome,
     recent,
     pendingDeletes,
     onDeleteFolder,
   } = props;
+  const list = useRef<HTMLElement>(null);
+  useEffect(() => { list.current?.scrollTo({ top: 0 }); }, [folder]);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [naming, setNaming] = useState(false);
   const [name, setName] = useState("");
@@ -81,6 +86,7 @@ export function Home(props: Props) {
     if (!folder) listed.folders = listed.folders.filter((item) => item.name !== "templates");
     return listed;
   }, [notes, folder]);
+  const visibleCount = view.folders.reduce((total, item) => total + item.count, 0) + view.notes.length;
   const paths = useMemo(() => notes.map((note) => note.path), [notes]);
   const diary = nextDiaryEntry(notes, new Date());
   const review = dueMonthlyReview(paths, new Date());
@@ -110,27 +116,26 @@ export function Home(props: Props) {
 
   return (
     <>
-      <header className="bar">
-        {folder ? (
+      <header className={`bar ${!folder ? "library-bar" : ""}`}>
+        <HomeButton onClick={() => { setNaming(false); setConfirmingDelete(false); onHome(); list.current?.scrollTo({ top: 0 }); }} />
+        {folder && (
           <button type="button" className="tool" aria-label="Up a folder" onClick={() => onFolder(parent)}>
             <BackIcon />
-          </button>
-        ) : (
-          <button type="button" className="tool" aria-label="Settings" onClick={onSettings}>
-            <SettingsIcon />
           </button>
         )}
         <h1 className="bar-title">{folder ? displayName(folder) : "Library"}</h1>
         <button type="button" className="sync-button" data-status={line.state} onClick={onSync}>
           {line.text}
         </button>
+        {!folder && <button type="button" className="tool" aria-label="Settings" onClick={onSettings}><SettingsIcon /></button>}
       </header>
-      <main className="list">
+      <main ref={list} className={`list ${!folder && !hits ? "library-home" : ""}`}>
         <div className="search">
+          <SearchIcon />
           <input
             type="search"
             aria-label="Search notes"
-            placeholder="Search"
+            placeholder="Search your library"
             value={query}
             autoCorrect="off"
             onChange={(event) => onQuery(event.target.value)}
@@ -153,15 +158,23 @@ export function Home(props: Props) {
         ) : (
           <>
             {!folder && (
-              <div className="actions">
+              <div className="actions writing-actions">
                 <button type="button" className="primary shortcut" onClick={() => onWrite(diary.path, diary.draft)}>
-                  {diary.span === "Today" && notes.some((note) => note.path === diary.path)
-                    ? "Continue today's entry"
-                    : "New diary entry"}
-                  <span className="shortcut-detail">{diary.span}</span>
+                  <SectionIcon name="diary" size={44} />
+                  <span className="shortcut-copy">
+                    {diary.span === "Today" && notes.some((note) => note.path === diary.path)
+                      ? "Continue today's entry"
+                      : "New diary entry"}
+                    <span className="shortcut-detail">
+                      {diary.span === "Today"
+                        ? new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })
+                        : diary.span}
+                    </span>
+                  </span>
+                  <ArrowIcon />
                 </button>
                 {review && (
-                  <button type="button" className="secondary" onClick={() => onWrite(review.path, "")}>
+                  <button type="button" className="review-shortcut" onClick={() => onWrite(review.path, "")}>
                     Write {review.month}'s review
                   </button>
                 )}
@@ -194,25 +207,15 @@ export function Home(props: Props) {
               </section>
             )}
 
-            {showRecent && (
-              <section aria-label="Recent">
-                <h2>Recent</h2>
-                <ul className="rows">
-                  {recentNotes.map((note) => (
-                    <NoteRow key={note.path} note={note} onOpen={onOpen} showFolder />
-                  ))}
-                </ul>
-              </section>
-            )}
-
-            {showRecent && <h2 className="list-heading">Shelves</h2>}
-            <ul className="rows">
+            {!folder && <h2 className="list-heading shelves-heading">Your shelves <span>{visibleCount} {visibleCount === 1 ? "note" : "notes"}</span></h2>}
+            <ul className={!folder ? "rows shelf-grid" : "rows"}>
               {view.folders.map((item) => (
                 <li key={item.path}>
                   <button type="button" className="row folder" onClick={() => onFolder(item.path)}>
-                    {!folder && hasSectionIcon(item.name) && <SectionIcon name={item.name} />}
+                    {!folder && hasSectionIcon(item.name) && <SectionIcon name={item.name} size={48} />}
                     <span className="row-title">{displayName(item.path)}</span>
-                    <span className="row-count">{item.count}</span>
+                    <span className="row-count">{item.count}{!folder && (item.count === 1 ? " note" : " notes")}</span>
+                    {!folder && <span className="shelf-arrow" aria-hidden="true"><ArrowIcon /></span>}
                   </button>
                 </li>
               ))}
@@ -223,6 +226,17 @@ export function Home(props: Props) {
                 <li className="empty">No notes found in this folder of the repo.</li>
               )}
             </ul>
+
+            {showRecent && (
+              <section aria-label="Recent">
+                <h2>Recent</h2>
+                <ul className="rows">
+                  {recentNotes.map((note) => (
+                    <NoteRow key={note.path} note={note} onOpen={onOpen} showFolder />
+                  ))}
+                </ul>
+              </section>
+            )}
 
             <div className="actions">
               {naming ? (

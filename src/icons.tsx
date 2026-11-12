@@ -21,6 +21,20 @@ export const BackIcon = () => (
   </Icon>
 );
 
+export const HomeIcon = () => (
+  <Icon>
+    <path d="m3.5 10 8.5-7 8.5 7M5.5 8.5V21h13V8.5M9.5 21v-7h5v7" />
+  </Icon>
+);
+
+export const SearchIcon = () => (
+  <Icon><circle cx="10.5" cy="10.5" r="6" /><path d="m15 15 5 5" /></Icon>
+);
+
+export const ArrowIcon = () => (
+  <Icon><path d="M4 12h15m-5-5 5 5-5 5" /></Icon>
+);
+
 export const CloseIcon = () => (
   <Icon>
     <path d="M6 6l12 12M18 6L6 18" />

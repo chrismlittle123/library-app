@@ -8,6 +8,8 @@ The Flashcards tab tests you on the cards in `knowledge/flashcards/flashcards.js
 
 Files with `do not edit` in their header are generated, so they open read-only. Other notes can be deleted or moved to another folder from the editor. Move keeps the filename and needs a connection: writing is saved and synced first, then both paths change in one GitHub commit. A name collision or a change elsewhere stops the move. Deletions and moves each have their own commit, which can be undone with `git revert`.
 
+The house button returns to the library root and clears search. Back keeps your previous folder and search results. In a note, both save your writing before leaving. Move is labelled beside the note’s folder, above the editor.
+
 Your notes and GitHub key never go in this repo. They're stored only on the phone, and the page's content security policy only lets it connect to itself, GitHub and the `life-admin` server, which never receives the key.
 
 ## Develop
@@ -22,6 +24,7 @@ LIBRARY_TEST_TOKEN=$(gh auth token) npm run test:e2e
 npm run lint
 npm run phone      # the app in Chrome at iPhone size
 npm run build
+node scripts/build-icons.mjs  # export app icons from public/library-mark.svg
 ```
 
 Playwright has no on-screen keyboard, so keyboard behaviour, autocorrect and dictation can only be tested on an iPhone.
