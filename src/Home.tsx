@@ -2,6 +2,7 @@ import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { NoteSearch } from "./search";
 import type { NoteRecord } from "./sync/store";
 import type { SyncStatus } from "./useSync";
+import { SectionIcon, hasSectionIcon } from "./sectionIcons";
 import { HomeButton } from "./Navigation";
 import { displayName, dueMonthlyReview, isConflictCopy, listFolder, newNotePath, nextDiaryEntry, noteName } from "./library";
 
@@ -157,6 +158,7 @@ export function Home(props: Props) {
             {!folder && (
               <div className="actions writing-actions">
                 <button type="button" className="primary shortcut" onClick={() => onWrite(diary.path, diary.draft)}>
+                  <SectionIcon name="diary" size={44} />
                   <span className="shortcut-copy">
                     {diary.span === "Today" && notes.some((note) => note.path === diary.path)
                       ? "Continue today's entry"
@@ -167,6 +169,7 @@ export function Home(props: Props) {
                         : diary.span}
                     </span>
                   </span>
+                  <span className="vintage-arrow" aria-hidden="true">›</span>
                 </button>
                 {review && (
                   <button type="button" className="review-shortcut" onClick={() => onWrite(review.path, "")}>
@@ -207,8 +210,11 @@ export function Home(props: Props) {
               {view.folders.map((item) => (
                 <li key={item.path}>
                   <button type="button" className="row folder" onClick={() => onFolder(item.path)}>
-                    <span className="row-title">{displayName(item.path)}</span>
-                    <span className="row-count">{item.count}{!folder && (item.count === 1 ? " note" : " notes")}</span>
+                    {hasSectionIcon(item.name) && <SectionIcon name={item.name} size={48} />}
+                    <span className="shelf-copy">
+                      <span className="row-title">{displayName(item.path)}</span>
+                      <span className="row-count">{item.count}{!folder && (item.count === 1 ? " note" : " notes")}</span>
+                    </span>
                   </button>
                 </li>
               ))}
@@ -318,9 +324,11 @@ function NoteRow({
   showFolder?: boolean;
 }) {
   const parent = note.path.includes("/") ? note.path.slice(0, note.path.lastIndexOf("/")) : "";
+  const section = note.path.split("/")[0];
   return (
     <li>
-      <button type="button" className="row" onClick={() => onOpen(note.path)}>
+      <button type="button" className={showFolder ? "row with-icon" : "row"} onClick={() => onOpen(note.path)}>
+        {showFolder && hasSectionIcon(section) && <SectionIcon name={section} size={30} />}
         <span className="row-text">
           <span className="row-title">
             {noteName(note.path, note.text)}
