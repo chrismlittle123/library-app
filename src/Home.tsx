@@ -3,8 +3,6 @@ import { NoteSearch } from "./search";
 import type { NoteRecord } from "./sync/store";
 import type { SyncStatus } from "./useSync";
 import { HomeButton } from "./Navigation";
-import { ArrowIcon, BackIcon, SearchIcon, SettingsIcon } from "./icons";
-import { SectionIcon, hasSectionIcon } from "./sectionIcons";
 import { displayName, dueMonthlyReview, isConflictCopy, listFolder, newNotePath, nextDiaryEntry, noteName } from "./library";
 
 const RECENT_SHOWN = 3;
@@ -120,18 +118,17 @@ export function Home(props: Props) {
         <HomeButton onClick={() => { setNaming(false); setConfirmingDelete(false); onHome(); list.current?.scrollTo({ top: 0 }); }} />
         {folder && (
           <button type="button" className="tool" aria-label="Up a folder" onClick={() => onFolder(parent)}>
-            <BackIcon />
+            Up
           </button>
         )}
         <h1 className="bar-title">{folder ? displayName(folder) : "Library"}</h1>
         <button type="button" className="sync-button" data-status={line.state} onClick={onSync}>
           {line.text}
         </button>
-        {!folder && <button type="button" className="tool" aria-label="Settings" onClick={onSettings}><SettingsIcon /></button>}
+        {!folder && <button type="button" className="tool" aria-label="Settings" onClick={onSettings}>Settings</button>}
       </header>
       <main ref={list} className={`list ${!folder && !hits ? "library-home" : ""}`}>
         <div className="search">
-          <SearchIcon />
           <input
             type="search"
             aria-label="Search notes"
@@ -160,7 +157,6 @@ export function Home(props: Props) {
             {!folder && (
               <div className="actions writing-actions">
                 <button type="button" className="primary shortcut" onClick={() => onWrite(diary.path, diary.draft)}>
-                  <SectionIcon name="diary" size={44} />
                   <span className="shortcut-copy">
                     {diary.span === "Today" && notes.some((note) => note.path === diary.path)
                       ? "Continue today's entry"
@@ -171,7 +167,6 @@ export function Home(props: Props) {
                         : diary.span}
                     </span>
                   </span>
-                  <ArrowIcon />
                 </button>
                 {review && (
                   <button type="button" className="review-shortcut" onClick={() => onWrite(review.path, "")}>
@@ -212,10 +207,8 @@ export function Home(props: Props) {
               {view.folders.map((item) => (
                 <li key={item.path}>
                   <button type="button" className="row folder" onClick={() => onFolder(item.path)}>
-                    {!folder && hasSectionIcon(item.name) && <SectionIcon name={item.name} size={48} />}
                     <span className="row-title">{displayName(item.path)}</span>
                     <span className="row-count">{item.count}{!folder && (item.count === 1 ? " note" : " notes")}</span>
-                    {!folder && <span className="shelf-arrow" aria-hidden="true"><ArrowIcon /></span>}
                   </button>
                 </li>
               ))}
@@ -325,12 +318,9 @@ function NoteRow({
   showFolder?: boolean;
 }) {
   const parent = note.path.includes("/") ? note.path.slice(0, note.path.lastIndexOf("/")) : "";
-  const section = note.path.split("/")[0];
-  const icon = showFolder && hasSectionIcon(section);
   return (
     <li>
-      <button type="button" className={icon ? "row with-icon" : "row"} onClick={() => onOpen(note.path)}>
-        {icon && <SectionIcon name={section} size={30} />}
+      <button type="button" className="row" onClick={() => onOpen(note.path)}>
         <span className="row-text">
           <span className="row-title">
             {noteName(note.path, note.text)}

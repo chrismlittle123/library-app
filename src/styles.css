@@ -8,13 +8,14 @@
 }
 
 :root {
-  --bg: #181915;
-  --surface: #21221d;
-  --surface-2: #2a2c24;
-  --line: #35372d;
-  --text: #efe9db;
-  --muted: #a8aa98;
-  --accent: #dcb986;
+  --bg: #211a15;
+  --surface: #2b221b;
+  --surface-2: #3a2d23;
+  --line: #594534;
+  --text: #ede0c9;
+  --muted: #bcaa91;
+  --accent: #c8a16c;
+  --chrome: #c9c9bf;
   --on-accent: #201811;
   --danger: #e39aa4;
   --danger-bg: #3a231d;
@@ -322,24 +323,11 @@ section h2,
   flex: 1;
 }
 
-.row.with-icon {
-  flex-direction: row;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 14px;
-}
-
 .row-text {
   display: flex;
   flex-direction: column;
   gap: 2px;
   min-width: 0;
-}
-
-/* App-icon tiles: a lift off the page, like on a home screen. */
-.section-icon {
-  flex: none;
-  filter: none;
 }
 
 .row:active {
@@ -423,11 +411,6 @@ section h2,
   gap: 6px;
   padding: calc(env(safe-area-inset-top) + 40px) 16px 8px;
   text-align: center;
-}
-
-.welcome svg {
-  margin-bottom: 8px;
-  color: var(--accent);
 }
 
 .welcome h1 {
@@ -571,7 +554,7 @@ section h2,
   padding-bottom: 4px;
 }
 
-/* Nine tools fit a 390pt-wide phone at 40pt each; still 44pt tall for a thumb. */
+/* The text tools remain 44pt tall and can scroll on a narrow phone. */
 .toolbar .tool {
   min-width: 40px;
   color: var(--muted);
@@ -587,11 +570,6 @@ section h2,
   border-radius: 8px;
   font: inherit;
   font-size: 19px;
-}
-
-.tool svg {
-  display: block;
-  margin: auto;
 }
 
 .bar .tool:first-child {
@@ -831,37 +809,35 @@ section h2,
 }
 
 
-/* The library: quiet paper colours, illustrated shelves and clear navigation. */
+/* A reading-room palette: walnut brown, bronze rules and restrained chrome type. */
 button, input, select { -webkit-touch-callout: none; }
 button:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-.bar { gap: 4px; padding: calc(env(safe-area-inset-top) + 8px) 16px 8px; }
+.bar { gap: 4px; padding: calc(env(safe-area-inset-top) + 8px) 12px 8px; border-bottom: 3px double #71563d; }
 .bar-title { color: var(--text); font-weight: 450; font-size: 22px; }
-.library-bar .bar-title { font-size: 27px; letter-spacing: -.7px; }
+.library-bar .bar-title { font-size: 27px; letter-spacing: .3px; color: #e4ceaa; }
 .home-button { color: var(--accent); }
-.home-button svg { width: 21px; height: 21px; }
+.bar .tool, .review-bar .tool { padding: 0 6px; font: 500 11px var(--serif); text-transform: uppercase; letter-spacing: .8px; color: var(--chrome); }
+.bar .home-button, .review-bar .home-button { color: var(--accent); }
+.tool { font-family: var(--serif); font-size: 14px; color: var(--chrome); border-radius: 3px; }
+.tool[aria-label="Dismiss"] { font-size: 12px; }
 .status, .sync-button { font-family: var(--sans); font-size: 11px; font-weight: 400; }
 .sync-button { max-width: 42%; line-height: 1.4; padding: 0 8px; }
-.sync-button[data-status="ok"]::before { content: ""; display: inline-block; width: 5px; height: 5px; background: #a4ba91; border-radius: 50%; margin: 0 6px 2px 0; }
+.sync-button[data-status="ok"]::before { content: ""; display: inline-block; width: 5px; height: 5px; background: #c8ae7f; border-radius: 50%; margin: 0 6px 2px 0; }
 .search { position: relative; padding: 16px 20px 8px; }
-.search > svg { position: absolute; left: 34px; top: 29px; width: 18px; height: 18px; color: var(--muted); pointer-events: none; }
-.search input { height: 44px; padding-left: 42px; border-radius: 12px; font-family: var(--sans); font-size: 16px; border-color: transparent; }
+.search input { height: 44px; padding-left: 14px; border-radius: 3px; font-family: var(--sans); font-size: 16px; border-color: #594534; }
 .search input:focus { border-color: var(--accent); }
 .writing-actions { padding: 8px 20px 12px; gap: 0; }
-.writing-actions .shortcut { flex-direction: row; gap: 12px; justify-content: flex-start; min-height: 88px; padding: 14px; border: 1px solid #4c3c38; border-radius: 16px; background: linear-gradient(115deg, #302725, #282521); color: var(--text); font-size: 21px; font-weight: 450; text-align: left; }
+.writing-actions .shortcut { flex-direction: row; gap: 12px; justify-content: flex-start; min-height: 88px; padding: 14px; border: 1px solid #795a3c; border-radius: 4px; background: linear-gradient(115deg, #37281d, #2c221b); color: var(--text); font-size: 21px; font-weight: 450; text-align: left; }
 .shortcut-copy { display: flex; flex: 1; flex-direction: column; gap: 6px; }
-.shortcut-detail { color: #b9aa99; opacity: 1; font: 11px/1.4 var(--sans); }
-.writing-actions .shortcut > svg:last-child { width: 20px; height: 20px; color: var(--accent); }
-.review-shortcut { align-self: flex-start; min-height: 36px; padding: 8px 4px 0; background: none; border: 0; color: var(--muted); font: 12px var(--sans); text-decoration: underline; text-underline-offset: 4px; text-decoration-color: #5c5d4d; }
-section h2, .list-heading { margin: 22px 20px 12px; font: 500 10px/1.4 var(--sans); letter-spacing: 1.6px; }
+.shortcut-detail { color: #c2ad8d; opacity: 1; font: 11px/1.4 var(--sans); }
+.review-shortcut { align-self: flex-start; min-height: 36px; padding: 8px 4px 0; background: none; border: 0; color: var(--muted); font: 12px var(--sans); text-decoration: underline; text-underline-offset: 4px; text-decoration-color: #856440; }
+section h2, .list-heading { margin: 22px 20px 12px; font: 500 11px/1.4 var(--serif); letter-spacing: 1.8px; color: var(--accent); }
 .shelves-heading { margin-top: 16px; display: flex; justify-content: space-between; align-items: center; }
-.shelves-heading span { font-size: 11px; font-weight: 400; letter-spacing: 0; text-transform: none; color: #858b78; }
+.shelves-heading span { font-size: 11px; font-weight: 400; letter-spacing: 0; text-transform: none; color: #ac967a; }
 .shelf-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 0 20px; }
-.shelf-grid .row.folder { position: relative; align-items: flex-start; flex-direction: column; gap: 0; min-height: 132px; padding: 14px 16px; border: 1px solid #34362c; border-radius: 18px; background: linear-gradient(145deg, #25271f, #20221c); }
-.shelf-grid .section-icon { margin: -3px 0 7px -4px; }
+.shelf-grid .row.folder { position: relative; align-items: flex-start; flex-direction: column; gap: 0; min-height: 90px; padding: 18px 16px; border: 1px solid #654c35; border-radius: 3px; background: #2c221a; box-shadow: inset 0 1px 0 #ffffff08; justify-content: center; }
 .shelf-grid .row-title { flex: none; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: clamp(18px, 5.8vw, 23px); line-height: 1.15; letter-spacing: -.3px; }
-.shelf-grid .row-count { margin-top: 6px; color: #989e8b; font: 11px/1.4 var(--sans); }
-.shelf-arrow { position: absolute; right: 14px; top: 18px; color: #707862; }
-.shelf-arrow svg { width: 17px; height: 17px; }
+.shelf-grid .row-count { margin-top: 6px; color: #b49c7c; font: 11px/1.4 var(--sans); }
 .shelf-grid li:has(.row:not(.folder)) { grid-column: 1 / -1; }
 .row { padding: 15px 20px; }
 .row:active, .shelf-grid .row.folder:active { background: var(--surface-2); }
@@ -872,18 +848,17 @@ section h2, .list-heading { margin: 22px 20px 12px; font: 500 10px/1.4 var(--san
 .library-home section[aria-label="Recent"] .rows { padding: 0 20px; }
 .library-home section[aria-label="Recent"] .row { padding: 14px 0; }
 .library-home section[aria-label="Recent"] .row-title { font-size: 21px; }
-.library-home > .actions:last-child .secondary { border-style: dashed; font: 13px var(--sans); color: var(--muted); }
-.tabs { border-top-color: #35372d; background: #1b1d17; padding: 5px 16px calc(env(safe-area-inset-bottom) + 5px); gap: 8px; }
-.tab { min-height: 44px; font-family: var(--sans); font-size: 11px; font-weight: 500; text-transform: none; letter-spacing: .2px; border-radius: 10px; }
-.tab[aria-current="page"] { background: #2b2e22; color: #e1d3b8; }
+.library-home > .actions:last-child .secondary { border-style: solid; border-radius: 3px; font: 15px var(--serif); color: var(--muted); }
+.tabs { border-top: 3px double #71563d; background: #241b14; padding: 5px 16px calc(env(safe-area-inset-bottom) + 5px); gap: 8px; }
+.tab { min-height: 44px; font-family: var(--serif); font-size: 12px; font-weight: 500; text-transform: uppercase; letter-spacing: 1.2px; border-radius: 3px; color: var(--chrome); }
+.tab[aria-current="page"] { background: #392b1f; color: #e3c496; box-shadow: inset 0 1px 0 #8d6b42; }
 .note-location { display: flex; align-items: center; gap: 2px; padding: 2px 12px 2px 20px; border-bottom: 1px solid var(--line); }
 .note-folder { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font: 11px var(--sans); }
 .move-tool { display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 0 10px; color: var(--accent); font: 12px var(--sans); }
-.move-tool svg { width: 19px; height: 19px; margin: 0; }
-.move-dialog { background: #25271f; border-color: #464b39; box-shadow: 0 24px 100px #0008; }
+.move-dialog { background: #30241b; border-color: #84633e; border-radius: 4px; box-shadow: 0 24px 100px #0008; }
 .move-dialog h2 { font-size: 30px; font-weight: 400; letter-spacing: -.5px; }
 .move-dialog p, .move-dialog label { color: var(--muted); font: 13px/1.6 var(--sans); }
-.move-dialog select { color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px; font: 16px var(--sans); }
+.move-dialog select { color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 3px; padding: 10px; font: 16px var(--sans); }
 .move-dialog .confirm-actions { margin-top: 8px; }
 .move-dialog .primary, .move-dialog .secondary { font-family: var(--sans); font-size: 14px; }
 @media (min-width: 700px) {
@@ -892,5 +867,14 @@ section h2, .list-heading { margin: 22px 20px 12px; font: 500 10px/1.4 var(--san
 }
 @media (prefers-reduced-motion: no-preference) {
   .shelf-grid .row { transition: background .18s, border-color .18s; }
-  .shelf-grid .row:hover { border-color: #666a51; }
+  .shelf-grid .row:hover { border-color: #a07b4d; }
 }
+
+/* Familiar typographic editing controls, like the keys of a writing machine. */
+.toolbar { border-top: 3px double #71563d; gap: 0; }
+.toolbar .tool { min-width: 38px; padding: 0 5px; font: 500 12px var(--serif); }
+.toolbar [data-tool="Heading"], .toolbar [data-tool="Bold"], .toolbar [data-tool="Italic"] { font-size: 19px; }
+.toolbar [data-tool="Bold"] { font-weight: 700; }
+.toolbar [data-tool="Italic"] { font-style: italic; }
+.note-location .tool { padding: 0 8px; font-size: 13px; }
+.primary, .secondary, .danger { border-radius: 4px; }

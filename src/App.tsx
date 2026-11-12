@@ -9,7 +9,6 @@ import { Setup } from "./Setup";
 import type { RepoConfig } from "./sync/github";
 import { openStore, type NoteStore } from "./sync/store";
 import { useSync } from "./useSync";
-import { CloseIcon } from "./icons";
 import { noteName, noteTitle } from "./library";
 
 /** Fit the app to the space above the keyboard, which iOS doesn't do for us. */
@@ -151,7 +150,7 @@ function Connected({
         </p>
       )}
       <button type="button" className="tool" aria-label="Dismiss" onClick={clearConflicts}>
-        <CloseIcon />
+        Dismiss
       </button>
     </div>
   );

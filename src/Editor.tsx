@@ -9,20 +9,6 @@ import { insertLink, toggleLinePrefix, toggleWrap } from "./commands";
 import { loadMode, saveMode } from "./config";
 import { createEditorState, setMode, type Mode } from "./editorState";
 import type { NoteRecord } from "./sync/store";
-import {
-  BackIcon,
-  BoldIcon,
-  TrashIcon,
-  MoveIcon,
-  CheckboxIcon,
-  HeadingIcon,
-  HideKeyboardIcon,
-  ItalicIcon,
-  LinkIcon,
-  ListIcon,
-  RedoIcon,
-  UndoIcon,
-} from "./icons";
 import { displayName, isGenerated, leadingHeading, noteName } from "./library";
 
 // Past this, the note's own heading has scrolled away and the bar takes over naming it.
@@ -179,16 +165,16 @@ export function Editor({ path, text, record, readStored, onSave, onBack, onHome,
     if (view.current) setMode(view.current, next);
   };
 
-  const tools: { icon: JSX.Element; name: string; action: () => void }[] = [
-    { icon: <HeadingIcon />, name: "Heading", action: run((s) => toggleLinePrefix(s, "## ")) },
-    { icon: <BoldIcon />, name: "Bold", action: run((s) => toggleWrap(s, "**")) },
-    { icon: <ItalicIcon />, name: "Italic", action: run((s) => toggleWrap(s, "*")) },
-    { icon: <ListIcon />, name: "List", action: run((s) => toggleLinePrefix(s, "- ")) },
-    { icon: <CheckboxIcon />, name: "Checkbox", action: run((s) => toggleLinePrefix(s, "- [ ] ")) },
-    { icon: <LinkIcon />, name: "Link", action: run(insertLink) },
-    { icon: <UndoIcon />, name: "Undo", action: () => view.current && undo(view.current) },
-    { icon: <RedoIcon />, name: "Redo", action: () => view.current && redo(view.current) },
-    { icon: <HideKeyboardIcon />, name: "Hide keyboard", action: () => view.current?.contentDOM.blur() },
+  const tools: { label: string; name: string; action: () => void }[] = [
+    { label: "H", name: "Heading", action: run((s) => toggleLinePrefix(s, "## ")) },
+    { label: "B", name: "Bold", action: run((s) => toggleWrap(s, "**")) },
+    { label: "I", name: "Italic", action: run((s) => toggleWrap(s, "*")) },
+    { label: "List", name: "List", action: run((s) => toggleLinePrefix(s, "- ")) },
+    { label: "To-do", name: "Checkbox", action: run((s) => toggleLinePrefix(s, "- [ ] ")) },
+    { label: "Link", name: "Link", action: run(insertLink) },
+    { label: "Undo", name: "Undo", action: () => view.current && undo(view.current) },
+    { label: "Redo", name: "Redo", action: () => view.current && redo(view.current) },
+    { label: "Done", name: "Hide keyboard", action: () => view.current?.contentDOM.blur() },
   ];
 
   let label = "Synced";
@@ -219,7 +205,7 @@ export function Editor({ path, text, record, readStored, onSave, onBack, onHome,
           aria-label="Back"
           onClick={() => leave(onBack)}
         >
-          <BackIcon />
+          Back
         </button>
         <h1 className="bar-title" data-hidden={(hasHeading && !scrolledPastHeading) || undefined}>
           {noteName(path, text)}
@@ -237,12 +223,12 @@ export function Editor({ path, text, record, readStored, onSave, onBack, onHome,
         </button>
         {!readOnly && record && (
           <button type="button" className="tool move-tool" aria-label="Move note" onClick={() => setMoving(true)}>
-            <MoveIcon /><span>Move</span>
+            Move
           </button>
         )}
         {!readOnly && record && (
           <button type="button" className="tool" aria-label="Delete note" onClick={() => setConfirmingDelete(true)}>
-            <TrashIcon />
+            Delete
           </button>
         )}
       </div>
@@ -286,12 +272,13 @@ export function Editor({ path, text, record, readStored, onSave, onBack, onHome,
               type="button"
               className="tool"
               aria-label={tool.name}
+              data-tool={tool.name}
               // Stops the tap taking focus from the editor and closing the keyboard.
               onPointerDown={(event) => event.preventDefault()}
               onMouseDown={(event) => event.preventDefault()}
               onClick={tool.action}
             >
-              {tool.icon}
+              {tool.label}
             </button>
           ))}
         </nav>
