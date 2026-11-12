@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { syncNotes, type SyncResult } from "./sync/engine";
 import { GitHubError, createGitHub, type RepoConfig } from "./sync/github";
+import { moveNote } from "./sync/move";
 import { markDeleted, saveEdit, type NoteRecord, type NoteStore } from "./sync/store";
 
 // Long enough that pauses while writing don't each become a commit.
@@ -24,6 +25,7 @@ export function useSync(config: RepoConfig, store: NoteStore) {
   });
   const [lastResult, setLastResult] = useState<SyncResult | null>(null);
   const running = useRef(false);
+  const active = useRef<Promise<void> | null>(null);
   const again = useRef(false);
   const pushTimer = useRef<number>();
 
@@ -31,31 +33,36 @@ export function useSync(config: RepoConfig, store: NoteStore) {
     window.clearTimeout(pushTimer.current);
     if (running.current) {
       again.current = true;
-      return;
+      return active.current?.catch(() => {});
     }
     running.current = true;
     setStatus((s) => ({ ...s, running: true, progress: null }));
-    do {
-      again.current = false;
-      try {
-        const result = await syncNotes(createGitHub(config), store, (done, total) => {
-          setStatus((s) => ({ ...s, progress: { done, total } }));
-        });
-        if (result.conflicts.length > 0 || result.keptDeletes.length > 0) setLastResult(result);
-        setStatus((s) => ({ ...s, error: null }));
-      } catch (error) {
-        const failure =
-          error instanceof GitHubError ? error : new GitHubError("other", "Sync failed.");
-        setStatus((s) => ({ ...s, error: failure }));
-      }
-      try {
-        setNotes(await store.all());
-      } catch {
-        // The next run tries again. Throwing here would leave sync stuck as running.
-      }
-    } while (again.current);
-    running.current = false;
-    setStatus((s) => ({ ...s, running: false, progress: null }));
+    const operation = (async () => {
+      do {
+        again.current = false;
+        try {
+          const result = await syncNotes(createGitHub(config), store, (done, total) => {
+            setStatus((s) => ({ ...s, progress: { done, total } }));
+          });
+          if (result.conflicts.length > 0 || result.keptDeletes.length > 0) setLastResult(result);
+          setStatus((s) => ({ ...s, error: null }));
+        } catch (error) {
+          const failure =
+            error instanceof GitHubError ? error : new GitHubError("other", "Sync failed.");
+          setStatus((s) => ({ ...s, error: failure }));
+        }
+        try {
+          setNotes(await store.all());
+        } catch {
+          // The next run tries again. Throwing here would leave sync stuck as running.
+        }
+      } while (again.current);
+      running.current = false;
+      setStatus((s) => ({ ...s, running: false, progress: null }));
+    })();
+    active.current = operation;
+    await operation;
+    if (active.current === operation) active.current = null;
   }, [config, store]);
 
   useEffect(() => {
@@ -111,6 +118,33 @@ export function useSync(config: RepoConfig, store: NoteStore) {
     [run, store],
   );
 
+  const move = useCallback(async (path: string, destination: string, expectedText: string) => {
+    // Wait for the existing run, then take its lock before any further await.
+    while (active.current) await active.current;
+    running.current = true;
+    window.clearTimeout(pushTimer.current);
+    setStatus((s) => ({ ...s, running: true, progress: null }));
+    const operation = (async () => {
+      try {
+        await moveNote(createGitHub(config), store, path, destination, expectedText, (result) => {
+          if (result.conflicts.length || result.keptDeletes.length) setLastResult(result);
+        });
+      } finally {
+        try { setNotes(await store.all()); } catch { /* The next sync retries. */ }
+        running.current = false;
+        setStatus((s) => ({ ...s, running: false, progress: null }));
+      }
+    })();
+    active.current = operation;
+    try {
+      await operation;
+    } finally {
+      if (active.current === operation) active.current = null;
+      // Also reconcile after an ambiguous network reply or a cache failure.
+      void run();
+    }
+  }, [config, store, run]);
+
   const notes = useMemo(() => stored.filter((note) => !note.deleted), [stored]);
   const pendingDeletes = stored.length - notes.length;
 
@@ -118,6 +152,7 @@ export function useSync(config: RepoConfig, store: NoteStore) {
     notes,
     pendingDeletes,
     remove,
+    move,
     loaded,
     status,
     edit,

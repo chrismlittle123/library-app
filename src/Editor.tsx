@@ -2,6 +2,7 @@ import { redo, undo } from "@codemirror/commands";
 import { type EditorState, Transaction, type TransactionSpec } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { useEffect, useRef, useState } from "react";
+import { MoveNote } from "./MoveNote";
 import { SaveQueue } from "./saveQueue";
 import { insertLink, toggleLinePrefix, toggleWrap } from "./commands";
 import { loadMode, saveMode } from "./config";
@@ -11,6 +12,7 @@ import {
   BackIcon,
   BoldIcon,
   TrashIcon,
+  MoveIcon,
   CheckboxIcon,
   HeadingIcon,
   HideKeyboardIcon,
@@ -38,10 +40,12 @@ interface Props {
   onBack: () => void;
   /** Deletes the note here, and from GitHub on the next sync. */
   onDelete: () => Promise<void>;
+  paths: string[];
+  onMove: (destination: string, text: string) => Promise<void>;
   autoFocus: boolean;
 }
 
-export function Editor({ path, text, record, readStored, onSave, onBack, onDelete, autoFocus }: Props) {
+export function Editor({ path, text, record, readStored, onSave, onBack, onDelete, paths, onMove, autoFocus }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
   const [mode, setModeState] = useState<Mode>(loadMode);
@@ -51,6 +55,7 @@ export function Editor({ path, text, record, readStored, onSave, onBack, onDelet
   // The note's heading names it on the page, so the bar only does once that's scrolled off.
   const [hasHeading] = useState(() => leadingHeading(text) !== null);
   const [scrolledPastHeading, setScrolledPastHeading] = useState(false);
+  const [moving, setMoving] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const timer = useRef<number>();
@@ -224,11 +229,22 @@ export function Editor({ path, text, record, readStored, onSave, onBack, onDelet
           <span className="sr-only">Hide markdown symbols</span>
         </button>
         {!readOnly && record && (
+          <button type="button" className="tool" aria-label="Move note" onClick={() => setMoving(true)}>
+            <MoveIcon />
+          </button>
+        )}
+        {!readOnly && record && (
           <button type="button" className="tool" aria-label="Delete note" onClick={() => setConfirmingDelete(true)}>
             <TrashIcon />
           </button>
         )}
       </header>
+      {moving && <MoveNote path={path} paths={paths} onClose={() => setMoving(false)}
+        onMove={async (destination) => {
+          await flush.current();
+          if (queue.hasUnsaved) throw new Error("Couldn't save your writing. Try again before moving.");
+          await onMove(destination, view.current!.state.doc.toString());
+        }} />}
       {confirmingDelete && (
         <div className="confirm" role="alertdialog" aria-label="Delete this note?">
           <p>
