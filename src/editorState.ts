@@ -22,7 +22,7 @@ const highlight = HighlightStyle.define([
   { tag: tags.strong, fontWeight: "600" },
   { tag: tags.emphasis, fontStyle: "italic" },
   { tag: tags.strikethrough, textDecoration: "line-through" },
-  { tag: tags.monospace, fontFamily: "ui-monospace, Menlo, monospace", fontSize: "0.9em" },
+  { tag: tags.monospace, fontFamily: "ui-monospace, Menlo, monospace", fontSize: "1em" },
   { tag: tags.link, color: "var(--accent)" },
   { tag: tags.url, color: "var(--muted)" },
   { tag: tags.quote, color: "var(--muted)" },
