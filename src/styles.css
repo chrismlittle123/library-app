@@ -818,6 +818,7 @@ button:focus-visible, select:focus-visible { outline: 2px solid var(--accent); o
 .home-button { color: var(--accent); }
 .bar .tool, .review-bar .tool { padding: 0 6px; font: 500 16px var(--serif); text-transform: uppercase; letter-spacing: .8px; color: var(--chrome); }
 .bar .home-button, .review-bar .home-button { color: var(--accent); }
+.bar .home-button, .review-bar .home-button { display: grid; flex: none; place-items: center; width: 44px; min-width: 44px; min-height: 44px; padding: 0; }
 .tool { font-family: var(--serif); font-size: 16px; color: var(--chrome); border-radius: 3px; }
 .tool[aria-label="Dismiss"] { font-size: 16px; }
 .status, .sync-button { font-family: var(--sans); font-size: 16px; font-weight: 400; }
