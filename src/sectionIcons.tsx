@@ -62,8 +62,14 @@ const SECTIONS = {
     </>,
   },
   Reflections: {
-    ground: "#342329",
-    art: <path d="M18 13h27v38H18z" fill="#8c4b51" /> ,
+    ground: "#282b32",
+    art: <>
+      <path d="M29 39 24 55h16l-5-16" fill="#b48852" />
+      <path d="M25 52h14" stroke="#e0c18a" strokeWidth="2" strokeLinecap="round" />
+      <ellipse cx="32" cy="25" rx="16" ry="20" fill="#c09a62" />
+      <ellipse cx="32" cy="25" rx="12.5" ry="16" fill="#617775" />
+      <path d="M25 20c2-4 6-6 10-6m-7 25c3 2 7 2 10 0" fill="none" stroke="#d7d3bd" strokeWidth="1.5" strokeLinecap="round" opacity=".8" />
+    </>,
   },
   inbox: {
     ground: "#302b25",

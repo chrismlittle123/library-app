@@ -4,9 +4,9 @@ import { loadPending, removePending, saveServerKey } from "./storage";
 import type { Card, CardState } from "./types";
 
 /** Where the cards are written, relative to the notes folder. */
-export const DECK_PATH = "knowledge/flashcards/flashcards.json";
+export const DECK_PATH = "Knowledge/flashcards/flashcards.json";
 /** The review server's key, kept in the private repo because this page is public. */
-export const KEY_PATH = "knowledge/flashcards/server-key.txt";
+export const KEY_PATH = "Knowledge/flashcards/server-key.txt";
 
 export interface SyncResult {
   deck: Card[] | null; // null: keep the cached deck

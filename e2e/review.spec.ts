@@ -111,7 +111,7 @@ test("a new card written on the Mac appears on the next open", async ({ page }) 
   await button(page, "Flashcards").click();
   await expect(page.getByText("2 due")).toBeVisible();
   github.write(
-    "knowledge/flashcards/flashcards.json",
+    "Knowledge/flashcards/flashcards.json",
     JSON.stringify([...(JSON.parse(DECK) as object[]), { id: "d", question: "New", answer: "New", topic: "t", memorise: true }]),
   );
   await button(page, "Library").click();

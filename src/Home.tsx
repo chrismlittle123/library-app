@@ -158,7 +158,7 @@ export function Home(props: Props) {
             {!folder && (
               <div className="actions writing-actions">
                 <button type="button" className="primary shortcut" onClick={() => onWrite(diary.path, diary.draft)}>
-                  <SectionIcon name="diary" size={44} />
+                  <SectionIcon name="Diary" size={44} />
                   <span className="shortcut-copy">
                     {diary.span === "Today" && notes.some((note) => note.path === diary.path)
                       ? "Continue today's entry"
