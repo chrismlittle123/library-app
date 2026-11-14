@@ -1,9 +1,22 @@
 import { describe, it, expect } from "vitest";
 import type { Card, Grade } from "./types";
-import { isFirstAnswer, progressLabel, requeue, uniqueCards } from "./session";
+import { isFirstAnswer, MAX_SESSION_CARDS, progressLabel, requeue, selectSessionCards, uniqueCards } from "./session";
 
 const card = (id: string): Card => ({ id, question: id, answer: id, topic: "t" });
 const [a, b, c] = [card("a"), card("b"), card("c")];
+
+describe("selectSessionCards", () => {
+  it("caps sessions and starts with high-priority due cards", () => {
+    const cards = Array.from({ length: 35 }, (_, i) => ({
+      ...card(String(i)),
+      priority: i < 4 ? "high" as const : "standard" as const,
+    }));
+    const selected = selectSessionCards(cards);
+    expect(selected).toHaveLength(MAX_SESSION_CARDS);
+    expect(selected.slice(0, 4).every((c) => c.priority === "high")).toBe(true);
+    expect(new Set(selected.map((c) => c.id)).size).toBe(MAX_SESSION_CARDS);
+  });
+});
 
 describe("requeue", () => {
   it("sends a miss to the back, however often it's missed", () => {

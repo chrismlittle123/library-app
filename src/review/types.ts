@@ -3,6 +3,8 @@ export interface Card {
   question: string;
   answer: string;
   topic: string;
+  /** Higher-priority cards return more often; missing values keep the standard schedule. */
+  priority?: "high" | "standard";
 }
 
 export type Rating = "again" | "good";

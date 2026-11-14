@@ -55,7 +55,12 @@ describe("parseDeck", () => {
       { ...CARD, memorise: true, source: "a book" },
       { ...CARD, id: "b", memorise: false },
     ]);
-    expect(parseDeck(text)).toEqual([CARD]);
+    expect(parseDeck(text)).toEqual([{ ...CARD, priority: "standard" }]);
+  });
+
+  it("preserves high priority from the deck", () => {
+    const text = JSON.stringify([{ ...CARD, memorise: true, priority: "high" }]);
+    expect(parseDeck(text)).toEqual([{ ...CARD, priority: "high" }]);
   });
 
   it("refuses a broken or empty deck, so the cached one stays", () => {
@@ -70,7 +75,7 @@ describe("syncReview", () => {
     api.fetchProgress.mockResolvedValue([onServer(session("s1", "2026-08-03T21:00:00Z"))]);
     const r = await syncReview(readFile);
     expect(r.online).toBe(true);
-    expect(r.deck).toEqual([CARD]);
+    expect(r.deck).toEqual([{ ...CARD, priority: "standard" }]);
     expect(r.states?.["a"].due).toBe("2026-09");
   });
 
@@ -108,7 +113,7 @@ describe("syncReview", () => {
   it("still gets the cards when only the server is down", async () => {
     api.fetchProgress.mockResolvedValue(null);
     const r = await syncReview(readFile);
-    expect(r).toEqual({ deck: [CARD], states: null, online: false });
+    expect(r).toEqual({ deck: [{ ...CARD, priority: "standard" }], states: null, online: false });
   });
 
   it("uploads a half-finished session so its grades survive the reopen", async () => {

@@ -2,10 +2,10 @@ import type { CardState, Grade, Rating } from "./types";
 
 // Spaced repetition on a MONTHLY clock. Classic SM-2 runs daily; this app is a
 // monthly habit, so intervals are counted in months and "due" is a year-month.
-// A card you nail drifts further out (2 → 4 → ~10 months); one you miss comes
-// straight back next month.
+// Successful cards spread out to a tier-specific cap (3 months for high
+// priority, 12 for standard); one you miss comes straight back next month.
 
-const MAX_INTERVAL_MONTHS = 12; // cap so nothing sleeps longer than a year
+const MAX_INTERVAL_MONTHS: Record<"high" | "standard", number> = { high: 3, standard: 12 };
 const MIN_EASE = 1.3;
 const START_EASE = 2.5;
 
@@ -38,6 +38,7 @@ export function grade(
   rating: Rating,
   now: string = yearMonth(),
   at: string = new Date().toISOString(),
+  priority: "high" | "standard" = "standard",
 ): CardState {
   let { ease, interval, reps, lapses } = s;
 
@@ -49,7 +50,7 @@ export function grade(
   } else {
     if (reps === 0) interval = 1;
     else if (reps === 1) interval = 2;
-    else interval = Math.min(MAX_INTERVAL_MONTHS, Math.round(interval * ease));
+    else interval = Math.min(MAX_INTERVAL_MONTHS[priority], Math.round(interval * ease));
     reps += 1;
   }
 
@@ -63,13 +64,16 @@ export function grade(
  * any device can recompute the same schedule from them. Each session is
  * replayed in the month it ended, exactly as `grade` ran when it happened.
  */
-export function replay(sessions: { ts: string; grades: Grade[] }[]): Record<string, CardState> {
+export function replay(
+  sessions: { ts: string; grades: Grade[] }[],
+  priorities: Record<string, "high" | "standard" | undefined> = {},
+): Record<string, CardState> {
   const states: Record<string, CardState> = {};
   const ordered = [...sessions].sort((a, b) => a.ts.localeCompare(b.ts));
   for (const s of ordered) {
     const ym = yearMonth(new Date(s.ts));
     for (const g of s.grades) {
-      states[g.id] = grade(states[g.id] ?? newState(g.id, ym), g.rating, ym, s.ts);
+      states[g.id] = grade(states[g.id] ?? newState(g.id, ym), g.rating, ym, s.ts, priorities[g.id]);
     }
   }
   return states;

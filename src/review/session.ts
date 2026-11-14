@@ -1,5 +1,23 @@
 import type { Card, Grade, Rating } from "./types";
 
+export const MAX_SESSION_CARDS = 30;
+
+function shuffle<T>(xs: T[]): T[] {
+  const a = [...xs];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+/** Bound each session and let due high-priority cards go first. */
+export function selectSessionCards(cards: Card[], limit = MAX_SESSION_CARDS): Card[] {
+  const high = shuffle(cards.filter((c) => c.priority === "high"));
+  const standard = shuffle(cards.filter((c) => c.priority !== "high"));
+  return [...high, ...standard].slice(0, limit);
+}
+
 // Within a session a missed card comes back until it's recalled correctly once
 // (successive relearning: retrieve to a criterion of one, then again in later
 // sessions). Only a card's first answer is a grade: it sets the schedule and is

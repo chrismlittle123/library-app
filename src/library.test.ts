@@ -22,14 +22,14 @@ describe("library paths", () => {
   const date = new Date(2026, 0, 5);
 
   it("builds the diary path", () => {
-    expect(diaryPath(date)).toBe("diary/daily/2026/01/2026-01-05.md");
+    expect(diaryPath(date)).toBe("Diary/daily/2026/01/2026-01-05.md");
   });
 
 
   it("makes a safe new note path", () => {
-    expect(newNotePath("inbox", "  a/b: idea.md ")).toBe("inbox/a b idea.md");
+    expect(newNotePath("Notes/inbox", "  a/b: idea.md ")).toBe("Notes/inbox/a b idea.md");
     expect(newNotePath("", "top")).toBe("top.md");
-    expect(newNotePath("inbox", " ../ ")).toBeNull();
+    expect(newNotePath("Notes/inbox", " ../ ")).toBeNull();
   });
 
   it("recognises titles, generated views and conflict copies", () => {
@@ -46,15 +46,15 @@ describe("listFolder", () => {
     note("recipes/b.md"),
     note("recipes/a.md", "", true),
     note("recipes/sub/c.md"),
-    note("diary/daily/2025/x.md"),
-    note("diary/daily/2026/y.md"),
+    note("Diary/daily/2025/x.md"),
+    note("Diary/daily/2026/y.md"),
   ];
 
   it("lists folders with counts at the top", () => {
     const view = listFolder(notes, "");
     expect(view.notes.map((n) => n.path)).toEqual(["top.md"]);
     expect(view.folders.map((f) => [f.name, f.count, f.unsynced])).toEqual([
-      ["diary", 2, 0],
+      ["Diary", 2, 0],
       ["recipes", 3, 1],
     ]);
   });
@@ -67,7 +67,7 @@ describe("listFolder", () => {
   });
 
   it("sorts the diary newest first", () => {
-    expect(listFolder(notes, "diary/daily").folders.map((f) => f.name)).toEqual(["2026", "2025"]);
+    expect(listFolder(notes, "Diary/daily").folders.map((f) => f.name)).toEqual(["2026", "2025"]);
   });
 });
 
@@ -130,9 +130,9 @@ describe("display names", () => {
   });
 
   it("reads diary dates and month folders as dates", () => {
-    expect(displayName("diary/daily/2026/11/2026-11-10.md")).toBe("Tuesday 10 November 2026");
-    expect(displayName("diary/daily/2026/11")).toBe("November");
-    expect(displayName("diary/daily/2026")).toBe("2026");
+    expect(displayName("Diary/daily/2026/11/2026-11-10.md")).toBe("Tuesday 10 November 2026");
+    expect(displayName("Diary/daily/2026/11")).toBe("November");
+    expect(displayName("Diary/daily/2026")).toBe("2026");
   });
 
   it("keeps the date in a conflict copy's name", () => {
@@ -144,18 +144,18 @@ describe("display names", () => {
 
 describe("diary names", () => {
   it("names a diary entry by the days it covers", () => {
-    expect(noteName("diary/daily/2026/11/2026-11-11.md", "# 26/10-11/11\n\nWords.")).toBe("26/10-11/11");
-    expect(noteName("diary/daily/2026/11/2026-11-11.md", "# 11/11\n")).toBe("11/11");
+    expect(noteName("Diary/daily/2026/11/2026-11-11.md", "# 26/10-11/11\n\nWords.")).toBe("26/10-11/11");
+    expect(noteName("Diary/daily/2026/11/2026-11-11.md", "# 11/11\n")).toBe("11/11");
   });
 
   it("falls back to the entry's date when it has no range heading", () => {
-    expect(noteName("diary/daily/2026/11/2026-11-11.md", "Just writing.")).toBe("11/11");
-    expect(noteName("diary/daily/2026/11/2026-11-11.md", "# Something else\n")).toBe("11/11");
+    expect(noteName("Diary/daily/2026/11/2026-11-11.md", "Just writing.")).toBe("11/11");
+    expect(noteName("Diary/daily/2026/11/2026-11-11.md", "# Something else\n")).toBe("11/11");
   });
 
   it("names a monthly review by its month, whatever its heading", () => {
-    expect(noteName("diary/monthly/2026/2026-10.md", "October has been good.")).toBe("October 2026");
-    expect(noteName("diary/monthly/2026/2026-05.md", "# Monthly review — 2026-05")).toBe("May 2026");
+    expect(noteName("Diary/monthly/2026/2026-10.md", "October has been good.")).toBe("October 2026");
+    expect(noteName("Diary/monthly/2026/2026-05.md", "# Monthly review — 2026-05")).toBe("May 2026");
   });
 });
 
@@ -166,10 +166,10 @@ describe("note names", () => {
   });
 
   it("falls back to the filename without a usable heading", () => {
-    expect(noteName("inbox/gift-ideas.md", "Some text\n# Later heading")).toBe("Gift ideas");
-    expect(noteName("inbox/2026-11-10.md", "# 2026-11-10\n")).toBe("Tuesday 10 November 2026");
+    expect(noteName("Notes/inbox/gift-ideas.md", "Some text\n# Later heading")).toBe("Gift ideas");
+    expect(noteName("Notes/inbox/2026-11-10.md", "# 2026-11-10\n")).toBe("Tuesday 10 November 2026");
     expect(noteName("templates/daily.md", "# {{date:YYYY-MM-DD}}\n")).toBe("Daily");
-    expect(noteName("inbox/new.md", undefined)).toBe("New");
+    expect(noteName("Notes/inbox/new.md", undefined)).toBe("New");
   });
 });
 
@@ -178,42 +178,42 @@ describe("diary shortcuts", () => {
   const entry = (path: string) => ({ path });
 
   it("covers everything since the last entry, filed under today", () => {
-    expect(nextDiaryEntry([entry("diary/daily/2026/10/2026-10-20.md"), entry("diary/daily/2026/10/2026-10-25.md"), entry("inbox/x.md")], today)).toEqual({
-      path: "diary/daily/2026/11/2026-11-10.md",
+    expect(nextDiaryEntry([entry("Diary/daily/2026/10/2026-10-20.md"), entry("Diary/daily/2026/10/2026-10-25.md"), entry("Notes/inbox/x.md")], today)).toEqual({
+      path: "Diary/daily/2026/11/2026-11-10.md",
       draft: "# 26/10-10/11\n\n",
       span: "26 Oct – 10 Nov",
     });
   });
 
   it("is a single day when the last entry was yesterday", () => {
-    expect(nextDiaryEntry([entry("diary/daily/2026/11/2026-11-09.md")], today)).toEqual({
-      path: "diary/daily/2026/11/2026-11-10.md",
+    expect(nextDiaryEntry([entry("Diary/daily/2026/11/2026-11-09.md")], today)).toEqual({
+      path: "Diary/daily/2026/11/2026-11-10.md",
       draft: "# 10/11\n\n",
       span: "Today",
     });
   });
 
   it("reopens today's entry once it's written", () => {
-    expect(nextDiaryEntry([entry("diary/daily/2026/11/2026-11-10.md")], today)).toEqual({
-      path: "diary/daily/2026/11/2026-11-10.md",
+    expect(nextDiaryEntry([entry("Diary/daily/2026/11/2026-11-10.md")], today)).toEqual({
+      path: "Diary/daily/2026/11/2026-11-10.md",
       draft: "",
       span: "Today",
     });
   });
 
   it("ignores dates in the future, and starts with today when there's nothing", () => {
-    expect(nextDiaryEntry([entry("diary/daily/2027/01/2027-01-01.md")], today).draft).toBe("# 10/11\n\n");
+    expect(nextDiaryEntry([entry("Diary/daily/2027/01/2027-01-01.md")], today).draft).toBe("# 10/11\n\n");
   });
 
   it("crosses a month and a year", () => {
-    const next = nextDiaryEntry([entry("diary/daily/2026/12/2026-12-29.md")], new Date(2027, 0, 3));
-    expect(next.path).toBe("diary/daily/2027/01/2027-01-03.md");
+    const next = nextDiaryEntry([entry("Diary/daily/2026/12/2026-12-29.md")], new Date(2027, 0, 3));
+    expect(next.path).toBe("Diary/daily/2027/01/2027-01-03.md");
     expect(next.draft).toBe("# 30/12-03/01\n\n");
   });
 
   it("offers last month's review only until it's written", () => {
-    expect(dueMonthlyReview([], today)).toEqual({ path: "diary/monthly/2026/2026-10.md", month: "October" });
-    expect(dueMonthlyReview(["diary/monthly/2026/2026-10.md"], today)).toBeNull();
-    expect(dueMonthlyReview([], new Date(2027, 0, 2))?.path).toBe("diary/monthly/2026/2026-12.md");
+    expect(dueMonthlyReview([], today)).toEqual({ path: "Diary/monthly/2026/2026-10.md", month: "October" });
+    expect(dueMonthlyReview(["Diary/monthly/2026/2026-10.md"], today)).toBeNull();
+    expect(dueMonthlyReview([], new Date(2027, 0, 2))?.path).toBe("Diary/monthly/2026/2026-12.md");
   });
 });

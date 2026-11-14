@@ -6,13 +6,13 @@ export function isoDate(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
-/** Matches the library's layout: diary/daily/YYYY/MM/YYYY-MM-DD.md */
+/** Matches the library's layout: Diary/daily/YYYY/MM/YYYY-MM-DD.md */
 export function diaryPath(date: Date): string {
-  return `diary/daily/${date.getFullYear()}/${pad(date.getMonth() + 1)}/${isoDate(date)}.md`;
+  return `Diary/daily/${date.getFullYear()}/${pad(date.getMonth() + 1)}/${isoDate(date)}.md`;
 }
 
-const DAILY_ENTRY = /^diary\/daily\/\d{4}\/\d{2}\/(\d{4}-\d{2}-\d{2})(?:_[^/]*)?\.md$/;
-const MONTHLY_REVIEW = /^diary\/monthly\/\d{4}\/(\d{4})-(\d{2})\.md$/;
+const DAILY_ENTRY = /^Diary\/daily\/\d{4}\/\d{2}\/(\d{4}-\d{2}-\d{2})(?:_[^/]*)?\.md$/;
+const MONTHLY_REVIEW = /^Diary\/monthly\/\d{4}\/(\d{4})-(\d{2})\.md$/;
 const SHORT_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 const parseIso = (iso: string) => new Date(Number(iso.slice(0, 4)), Number(iso.slice(5, 7)) - 1, Number(iso.slice(8, 10)));
@@ -54,7 +54,7 @@ export function nextDiaryEntry(notes: { path: string }[], today: Date): DiaryEnt
 /** Last month's review, if it hasn't been written yet. Reviews have no template. */
 export function dueMonthlyReview(paths: string[], today: Date): { path: string; month: string } | null {
   const month = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-  const path = `diary/monthly/${month.getFullYear()}/${month.getFullYear()}-${pad(month.getMonth() + 1)}.md`;
+  const path = `Diary/monthly/${month.getFullYear()}/${month.getFullYear()}-${pad(month.getMonth() + 1)}.md`;
   return paths.includes(path) ? null : { path, month: MONTHS[month.getMonth()] };
 }
 
@@ -160,9 +160,18 @@ export function listFolder(notes: NoteRecord[], folder: string): FolderView {
     if (note.dirty) entry.unsynced += 1;
     folders.set(name, entry);
   }
-  const newestFirst = folder.startsWith("diary");
-  const order = (a: string, b: string) =>
-    newestFirst ? b.localeCompare(a, undefined, { numeric: true }) : a.localeCompare(b, undefined, { numeric: true });
+  const newestFirst = folder.startsWith("Diary");
+  const rootOrder = ["Catalogues", "Diary", "Notes", "Reflections", "Knowledge", "Workshop"];
+  const order = (a: string, b: string) => {
+    if (!folder) {
+      const rank = (name: string) => {
+        const index = rootOrder.indexOf(name);
+        return index < 0 ? rootOrder.length : index;
+      };
+      return rank(a) - rank(b) || a.localeCompare(b);
+    }
+    return newestFirst ? b.localeCompare(a, undefined, { numeric: true }) : a.localeCompare(b, undefined, { numeric: true });
+  };
   return {
     folders: [...folders.values()].sort((a, b) => order(a.name, b.name)),
     notes: direct.sort((a, b) => order(a.path, b.path)),

@@ -106,7 +106,7 @@ export function Home(props: Props) {
   const parent = folder.includes("/") ? folder.slice(0, folder.lastIndexOf("/")) : "";
 
   const create = () => {
-    const path = newNotePath(folder || "inbox", name);
+    const path = newNotePath(folder || "Notes/inbox", name);
     if (!path) return;
     setNaming(false);
     setName("");
@@ -339,7 +339,7 @@ function NoteRow({
             <span className="row-path">
               {displayName(parent.split("/")[0])}
               {/* A diary entry's name has no year, so say which. */}
-              {note.path.startsWith("diary/") && /\/(\d{4})\//.test(note.path) && ` · ${/\/(\d{4})\//.exec(note.path)![1]}`}
+              {note.path.startsWith("Diary/") && /\/(\d{4})\//.test(note.path) && ` · ${/\/(\d{4})\//.exec(note.path)![1]}`}
             </span>
           )}
         </span>

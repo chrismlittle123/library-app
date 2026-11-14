@@ -102,7 +102,7 @@ async function backAndSync(page: Page) {
 }
 
 async function openRecipe(page: Page, title: string) {
-  await page.getByRole("button", { name: /Catalogues/ }).click();
+  await page.getByRole("button", { name: /Free text/ }).click();
   await page.getByRole("button", { name: /Recipes/ }).click();
   await page.getByRole("button", { name: title, exact: true }).click();
 }
@@ -162,7 +162,7 @@ test("a new note left empty creates nothing", async ({ page }) => {
 
 test("generated views open read-only", async ({ page }) => {
   await connect(page);
-  await page.getByRole("button", { name: /Catalogues/ }).click();
+  await page.getByRole("button", { name: /Databases/ }).click();
   await page.getByRole("button", { name: /^Wines/ }).click();
   await page.getByRole("button", { name: "Wines", exact: true }).click();
   await expect(page.getByRole("status")).toHaveText("Read only");
@@ -186,7 +186,7 @@ test("an open note picks up a change from elsewhere", async ({ page }) => {
   await connect(page);
   await openRecipe(page, "Roast potatoes");
   const mark = `from-mac-${Date.now()}`;
-  await writeRemote("catalogues/recipes/roast-potatoes.md", `# Roast potatoes\n\n${mark}\n`);
+  await writeRemote("Notes/recipes/roast-potatoes.md", `# Roast potatoes\n\n${mark}\n`);
   await page.evaluate(() => window.dispatchEvent(new Event("online")));
   await expect(editor(page)).toContainText(mark, { timeout: 20_000 });
   await expect(page.getByRole("status")).toHaveText("Synced");
@@ -206,18 +206,18 @@ test("writing offline survives a reload and pushes once back online", async ({ p
   await page.getByRole("button", { name: "Up a folder" }).click();
   await page.getByRole("button", { name: "Up a folder" }).click();
   await expect(page.getByRole("button", { name: /Offline · 1 not synced/ })).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByRole("region", { name: "Not synced" })).toContainText("catalogues/recipes/tomato-soup.md");
-  expect(await readRemote("catalogues/recipes/tomato-soup.md")).not.toContain(mark);
+  await expect(page.getByRole("region", { name: "Not synced" })).toContainText("Notes/recipes/tomato-soup.md");
+  expect(await readRemote("Notes/recipes/tomato-soup.md")).not.toContain(mark);
 
   // The service worker serves the app, and the note comes back from the phone's storage.
   await page.waitForFunction(() => navigator.serviceWorker.controller !== null, undefined, { timeout: 15_000 });
   await page.reload();
-  await expect(page.getByRole("region", { name: "Not synced" })).toContainText("catalogues/recipes/tomato-soup.md");
+  await expect(page.getByRole("region", { name: "Not synced" })).toContainText("Notes/recipes/tomato-soup.md");
 
   await context.setOffline(false);
   await page.evaluate(() => window.dispatchEvent(new Event("online")));
   await expect(page.getByRole("button", { name: "Synced", exact: true })).toBeVisible({ timeout: 30_000 });
-  expect(await readRemote("catalogues/recipes/tomato-soup.md")).toContain(mark);
+  expect(await readRemote("Notes/recipes/tomato-soup.md")).toContain(mark);
 });
 });
 

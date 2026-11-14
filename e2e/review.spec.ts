@@ -28,9 +28,9 @@ const button = (page: Page, name: string | RegExp) =>
 
 test.beforeEach(async ({ page }) => {
   github = new FakeGitHub({
-    "vault/inbox/idea.md": "# Idea\n",
-    "vault/knowledge/flashcards/flashcards.json": DECK,
-    "vault/knowledge/flashcards/server-key.txt": "e2e-secret\n",
+    "vault/Notes/inbox/idea.md": "# Idea\n",
+    "vault/Knowledge/flashcards/flashcards.json": DECK,
+    "vault/Knowledge/flashcards/server-key.txt": "e2e-secret\n",
   });
   await github.install(page);
   serverUp = true;

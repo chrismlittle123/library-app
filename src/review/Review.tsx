@@ -4,7 +4,7 @@ import { prettify } from "../library";
 import { createGitHub, type RepoConfig } from "../sync/github";
 import { publishSession } from "./api";
 import { parseMarkdown, type Line } from "./markdown";
-import { isFirstAnswer, progressLabel, requeue } from "./session";
+import { isFirstAnswer, MAX_SESSION_CARDS, progressLabel, requeue, selectSessionCards } from "./session";
 import { grade, isDue, newState, yearMonth } from "./sr";
 import { loadDeck, loadStates, removePending, saveDeck, saveStates, upsertPending } from "./storage";
 import { syncReview } from "./sync";
@@ -13,16 +13,6 @@ import type { Card, CardState, Grade, Rating, SessionRecord } from "./types";
 type Phase = "start" | "review" | "done";
 type SyncStatus = "loading" | "online" | "offline";
 type Tally = { graded: number; again: number; good: number };
-
-function shuffle<T>(xs: T[]): T[] {
-  const a = [...xs];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
-
 /** The tabs stay hidden during a session. Exit and Home both preserve answered grades. */
 export function Review({ config, tabs, onHome }: { config: RepoConfig; tabs: ReactNode; onHome: () => void }) {
   const [cards, setCards] = useState<Card[]>(() => loadDeck() ?? []);
@@ -80,7 +70,7 @@ export function Review({ config, tabs, onHome }: { config: RepoConfig; tabs: Rea
 
   function begin(chosen: Card[]) {
     if (chosen.length === 0) return;
-    setQueue(shuffle(chosen));
+    setQueue(selectSessionCards(chosen));
     setIdx(0);
     setRevealed(false);
     setTally({ graded: 0, again: 0, good: 0 });
@@ -132,7 +122,7 @@ export function Review({ config, tabs, onHome }: { config: RepoConfig; tabs: Rea
     let t = tally;
     let g = grades;
     if (isFirstAnswer(grades, card.id)) {
-      const nextStates = { ...states, [card.id]: grade(stateFor(card), rating, now) };
+      const nextStates = { ...states, [card.id]: grade(stateFor(card), rating, now, undefined, card.priority) };
       setStates(nextStates);
       saveStates(nextStates);
       t = {
@@ -183,7 +173,9 @@ export function Review({ config, tabs, onHome }: { config: RepoConfig; tabs: Rea
             }
           }}
         >
-          <span className="review-topic">{prettify(queue[idx].topic)}</span>
+          <span className="review-topic">
+            {prettify(queue[idx].topic)}{queue[idx].priority === "high" ? " · High priority" : ""}
+          </span>
           <div className="review-face">
             <p className="review-question">{queue[idx].question}</p>
             {revealed && <Answer text={queue[idx].answer} />}
@@ -258,6 +250,7 @@ export function Review({ config, tabs, onHome }: { config: RepoConfig; tabs: Rea
             <>
               <p className="review-eyebrow">This month</p>
               <p className="review-big">{dueCards.length} due</p>
+              <p className="hint">Up to {MAX_SESSION_CARDS} distinct cards per session; missed cards return again.</p>
               <button type="button" className="primary" onClick={() => begin(dueCards)}>
                 Start review
               </button>

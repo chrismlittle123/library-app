@@ -1,7 +1,7 @@
 // Small illustrations, drawn as filled objects so their silhouettes survive at
 // note-row size. The muted grounds share the library's ink-and-paper palette.
 const SECTIONS = {
-  catalogues: {
+  Catalogues: {
     ground: "#30291e",
     art: <>
       <path d="M10 48h44" stroke="#bdaa84" strokeWidth="2" strokeLinecap="round" />
@@ -14,7 +14,15 @@ const SECTIONS = {
       <g transform="rotate(-14 46 46)"><rect x="40" y="21" width="10" height="26" rx="2" fill="#c17e6d" /><path d="M43 24v20m2-17h3m-3 13h3" stroke="#efc3a8" strokeWidth="1.5" /></g>
     </>,
   },
-  diary: {
+  Notes: {
+    ground: "#30291e",
+    art: <>
+      <path d="M18 15h28v35H18z" fill="#e0d5bd" />
+      <path d="M24 24h16m-16 6h16m-16 6h12m-12 6h15" stroke="#8e8066" strokeWidth="2" strokeLinecap="round" />
+      <path d="m43 47 7-7 4 4-7 7-6 2z" fill="#c89156" />
+    </>,
+  },
+  Diary: {
     ground: "#342329",
     art: <>
       <path d="M18 13h27a3 3 0 0 1 3 3v33H20a5 5 0 0 1-5-5V18a5 5 0 0 1 3-5" fill="#8c4b51" />
@@ -26,7 +34,7 @@ const SECTIONS = {
       <path d="M31 27h6" stroke="#e2c5ac" strokeWidth="1.4" strokeLinecap="round" />
     </>,
   },
-  knowledge: {
+  Knowledge: {
     ground: "#262e27",
     art: <>
       <path d="m24 27-8 19h35l-8-19" fill="#e0b65c" opacity=".12" />
@@ -38,7 +46,7 @@ const SECTIONS = {
       <path d="M22 52h29" stroke="#5b6b58" strokeWidth="2" strokeLinecap="round" />
     </>,
   },
-  workshop: {
+  Workshop: {
     ground: "#242c35",
     art: <>
       <path d="M17 14h23l8 8v29H17z" fill="#bac7cc" />
@@ -52,6 +60,10 @@ const SECTIONS = {
         <circle cx="35" cy="34" r="1.3" fill="#665444" />
       </g>
     </>,
+  },
+  Reflections: {
+    ground: "#342329",
+    art: <path d="M18 13h27v38H18z" fill="#8c4b51" /> ,
   },
   inbox: {
     ground: "#302b25",

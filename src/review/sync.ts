@@ -21,7 +21,13 @@ export function parseDeck(text: string): Card[] | null {
     if (!Array.isArray(raw)) return null;
     const cards = raw
       .filter((c) => c.memorise)
-      .map(({ id, question, answer, topic }) => ({ id, question, answer, topic }));
+      .map(({ id, question, answer, topic, priority }) => ({
+        id,
+        question,
+        answer,
+        topic,
+        priority: priority === "high" ? "high" as const : "standard" as const,
+      }));
     // An empty deck is a fault, not a reason to hide every card.
     return cards.length > 0 ? cards : null;
   } catch {
@@ -53,7 +59,7 @@ export async function syncReview(readFile: (path: string) => Promise<string | nu
   if (sessions) {
     const onServer = new Set(sessions.map((s) => s.session_id));
     const queued = loadPending().filter((p) => !onServer.has(p.session_id));
-    states = replay([...sessions, ...queued]);
+    states = replay([...sessions, ...queued], Object.fromEntries(deck?.map((c) => [c.id, c.priority]) ?? []));
   }
   return { deck, states, online: deck !== null && sessions !== null };
 }

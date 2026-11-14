@@ -145,9 +145,9 @@ describe("syncNotes", () => {
 
   it("pushes a new note made on the phone", async () => {
     const { github, store } = await setup();
-    await edit(store, "diary/today.md", "hello");
+    await edit(store, "Diary/today.md", "hello");
     await syncNotes(github, store, undefined, NOW);
-    expect(github.files.get("diary/today.md")).toBe("hello");
+    expect(github.files.get("Diary/today.md")).toBe("hello");
   });
 
   it("downloads a change made on the Mac", async () => {
@@ -348,20 +348,20 @@ describe("a second look before keeping both", () => {
 
 describe("deleting", () => {
   it("removes a deleted note from GitHub in a commit of its own", async () => {
-    const { github, store } = await setup({ "recipes/a.md": "A", "recipes/b.md": "B", "inbox/c.md": "C" });
+    const { github, store } = await setup({ "recipes/a.md": "A", "recipes/b.md": "B", "Notes/inbox/c.md": "C" });
     await markDeleted(store, "recipes/a.md");
     await markDeleted(store, "recipes/b.md");
-    await edit(store, "inbox/c.md", "C edited");
+    await edit(store, "Notes/inbox/c.md", "C edited");
     const result = await syncNotes(github, store, undefined, NOW);
     expect(result.deleted).toBe(2);
-    expect([...github.files.keys()]).toEqual(["inbox/c.md"]);
-    expect(github.files.get("inbox/c.md")).toBe("C edited");
+    expect([...github.files.keys()]).toEqual(["Notes/inbox/c.md"]);
+    expect(github.files.get("Notes/inbox/c.md")).toBe("C edited");
     // The deletion and the edit are separate commits, so either can be reverted alone.
     expect(github.commits).toHaveLength(2);
     expect(github.commits[0].every((change) => change.text === null)).toBe(true);
     expect(github.messages[0]).toMatch(/^phone: delete 2 notes in recipes\n/);
     expect(store.notes.has("recipes/a.md")).toBe(false);
-    expect(store.notes.get("inbox/c.md")?.dirty).toBe(false);
+    expect(store.notes.get("Notes/inbox/c.md")?.dirty).toBe(false);
   });
 
   it("brings a note back if it changed elsewhere after being deleted here", async () => {
@@ -387,10 +387,10 @@ describe("deleting", () => {
 
   it("never pushes a new note that was deleted before it synced", async () => {
     const { github, store } = await setup({});
-    await edit(store, "inbox/draft.md", "half a thought");
-    await markDeleted(store, "inbox/draft.md");
+    await edit(store, "Notes/inbox/draft.md", "half a thought");
+    await markDeleted(store, "Notes/inbox/draft.md");
     await syncNotes(github, store, undefined, NOW);
-    expect(store.notes.has("inbox/draft.md")).toBe(false);
+    expect(store.notes.has("Notes/inbox/draft.md")).toBe(false);
     expect(github.commits).toHaveLength(0);
   });
 
@@ -407,7 +407,7 @@ describe("deleting", () => {
       "phone: delete 2 notes in recipes\n\n- recipes/a.md\n- recipes/b.md\n\nUndo with git revert on this commit.",
     );
     expect(deletionMessage(["a/x.md", "b/y.md"]).split("\n")[0]).toBe("phone: delete 2 notes");
-    expect(deletionMessage(["diary/daily/2026/x.md"]).split("\n")[0]).toBe("phone: delete 1 note in diary/daily/2026");
+    expect(deletionMessage(["Diary/daily/2026/x.md"]).split("\n")[0]).toBe("phone: delete 1 note in Diary/daily/2026");
   });
 });
 
@@ -531,9 +531,9 @@ describe("blob helpers", () => {
 
 describe("isNotePath", () => {
   it("only accepts markdown outside hidden folders", () => {
-    expect(isNotePath("diary/a.md")).toBe(true);
+    expect(isNotePath("Diary/a.md")).toBe(true);
     expect(isNotePath(".obsidian/a.md")).toBe(false);
-    expect(isNotePath("catalogues/.index/a.md")).toBe(false);
+    expect(isNotePath("Catalogues/.index/a.md")).toBe(false);
     expect(isNotePath("wines.json")).toBe(false);
   });
 });
