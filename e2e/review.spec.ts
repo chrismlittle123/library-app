@@ -82,7 +82,7 @@ test("a review reads the cards from the notes and logs the grades", async ({ pag
   await button(page, "Back").click();
   await expect(page.getByText("All caught up")).toBeVisible();
   await button(page, "Library").click();
-  await expect(page.getByRole("button", { name: /^Inbox/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Notes/ })).toBeVisible();
 });
 
 test("a review can be left before answering anything", async ({ page }) => {
@@ -154,7 +154,7 @@ test("Home leaves flashcards and clears an earlier library search", async ({ pag
   await button(page, "Flashcards").click();
   await button(page, "Home").click();
   await expect(page.getByLabel("Search notes")).toHaveValue("");
-  await expect(button(page, /^Inbox/)).toBeVisible();
+  await expect(button(page, /^Notes/)).toBeVisible();
 });
 
 test("Home during a review preserves grades and returns to the library", async ({ page }) => {
