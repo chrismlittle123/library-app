@@ -102,7 +102,7 @@ async function backAndSync(page: Page) {
 }
 
 async function openRecipe(page: Page, title: string) {
-  await page.getByRole("button", { name: /Free text/ }).click();
+  await page.getByRole("button", { name: /Notes/ }).click();
   await page.getByRole("button", { name: /Recipes/ }).click();
   await page.getByRole("button", { name: title, exact: true }).click();
 }
@@ -157,12 +157,12 @@ test("a new note left empty creates nothing", async ({ page }) => {
   await expect(editor(page)).toBeVisible();
   await page.getByRole("button", { name: "Back" }).click();
   await expect(page.getByRole("button", { name: "Synced", exact: true })).toBeVisible({ timeout: 30_000 });
-  expect(await readRemote(`workshop/${name}.md`)).toBeNull();
+  expect(await readRemote(`Workshop/${name}.md`)).toBeNull();
 });
 
 test("generated views open read-only", async ({ page }) => {
   await connect(page);
-  await page.getByRole("button", { name: /Databases/ }).click();
+  await page.getByRole("button", { name: /Catalogues/ }).click();
   await page.getByRole("button", { name: /^Wines/ }).click();
   await page.getByRole("button", { name: "Wines", exact: true }).click();
   await expect(page.getByRole("status")).toHaveText("Read only");
@@ -223,7 +223,7 @@ test("writing offline survives a reload and pushes once back online", async ({ p
 
 test("a change on both sides keeps both versions", async ({ page, context }) => {
   // The list names a note by its heading, so start from a known one.
-  await writeRemote("workshop/ideas/the-log.md", "# The log\n\nStart.\n");
+  await writeRemote("Workshop/ideas/the-log.md", "# The log\n\nStart.\n");
   await connect(page);
   await page.getByRole("button", { name: /^Workshop/ }).click();
   await page.getByRole("button", { name: /^Ideas/ }).click();
@@ -233,13 +233,13 @@ test("a change on both sides keeps both versions", async ({ page, context }) => 
   await typeAtStart(page, `${phone} `);
   await expect(page.getByRole("status")).toHaveText("Not synced");
   const mac = `mac-${Date.now()}`;
-  await writeRemote("workshop/ideas/the-log.md", `# The log\n\n${mac}\n`);
+  await writeRemote("Workshop/ideas/the-log.md", `# The log\n\n${mac}\n`);
   await context.setOffline(false);
   await page.evaluate(() => window.dispatchEvent(new Event("online")));
 
   await expect(page.getByRole("alert")).toContainText("The log also changed elsewhere", { timeout: 30_000 });
   await expect(editor(page)).toContainText(mac);
-  expect(await readRemote("workshop/ideas/the-log.md")).toContain(mac);
+  expect(await readRemote("Workshop/ideas/the-log.md")).toContain(mac);
 
   await page.getByRole("button", { name: "Back" }).click();
   await page.getByRole("button", { name: "Up a folder" }).click();
@@ -253,18 +253,18 @@ test("a change on both sides keeps both versions", async ({ page, context }) => 
 test("a deleted note leaves GitHub in a commit that names it", async ({ page }) => {
   // Its own note, so deleting it can't affect the other tests.
   const name = `doomed-${Date.now()}`;
-  await writeRemote(`workshop/${name}.md`, `# ${name}\n`);
+  await writeRemote(`Workshop/${name}.md`, `# ${name}\n`);
   await connect(page);
   await page.getByRole("button", { name: /^Workshop/ }).click();
   await page.getByRole("button", { name, exact: true }).click();
   await page.getByRole("button", { name: "Delete note" }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "Delete", exact: true }).click();
   await expect(page.getByRole("button", { name: "Synced", exact: true })).toBeVisible({ timeout: 30_000 });
-  expect(await readRemote(`workshop/${name}.md`)).toBeNull();
+  expect(await readRemote(`Workshop/${name}.md`)).toBeNull();
   const commits = await fetch(`https://api.github.com/repos/${REPO}/commits?per_page=1`, { headers: HEADERS, cache: "no-store" });
   const [head] = (await commits.json()) as { commit: { message: string } }[];
-  expect(head.commit.message).toContain("phone: delete 1 note in workshop");
-  expect(head.commit.message).toContain(`- workshop/${name}.md`);
+  expect(head.commit.message).toContain("phone: delete 1 note in Workshop");
+  expect(head.commit.message).toContain(`- Workshop/${name}.md`);
 });
 
 test("disconnecting erases the phone copy and key", async ({ page }) => {

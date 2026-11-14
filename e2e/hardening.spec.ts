@@ -36,7 +36,7 @@ async function connect(page: Page) {
 
 test("the diary shortcut writes today's entry headed with its date, and Templates is hidden", async ({ page }) => {
   await connect(page);
-  await expect(button(page, /^Free text/)).toBeVisible();
+  await expect(button(page, /^Notes/)).toBeVisible();
   await expect(button(page, /^Templates/)).toHaveCount(0);
   await button(page, /^New diary entry/).click();
   await expect(editor(page)).toBeFocused();
@@ -67,24 +67,24 @@ test("a note deleted here goes from GitHub in a commit of its own", async ({ pag
   await expect(synced(page)).toBeVisible();
   expect(github.read(TOMATO)).toBeUndefined();
   expect(github.read(POTATO)).toBeDefined();
-  expect(github.messages.at(-1)).toMatch(/^phone: delete 1 note in free-text\/recipes\n\n- free-text\/recipes\/tomato-soup\.md/);
+  expect(github.messages.at(-1)).toMatch(/^phone: delete 1 note in Notes\/recipes\n\n- Notes\/recipes\/tomato-soup\.md/);
 });
 
 test("deleting a folder removes every note in it as one commit", async ({ page }) => {
   await connect(page);
-  await button(page, /^Free text/).click();
+  await button(page, /^Notes/).click();
   await button(page, /^Recipes/).click();
   await button(page, "Delete folder").click();
   await expect(page.getByRole("alertdialog")).toContainText("Delete all 2 notes in Recipes");
   await button(page, "Delete 2 notes").click();
-  // Recipes was the only thing in Free text, so that empties too.
+  // Recipes was the only thing in Notes, so that empties too.
   await expect(button(page, /^Recipes/)).toHaveCount(0);
   await expect(synced(page)).toBeVisible();
   expect(github.read(TOMATO)).toBeUndefined();
   expect(github.read(POTATO)).toBeUndefined();
-  expect(github.read("workshop/idea.md")).toBeDefined();
+  expect(github.read("Workshop/idea.md")).toBeDefined();
   const deletes = github.messages.filter((message) => message.startsWith("phone: delete"));
-  expect(deletes).toEqual([expect.stringMatching(/^phone: delete 2 notes in free-text\/recipes\n/)]);
+  expect(deletes).toEqual([expect.stringMatching(/^phone: delete 2 notes in Notes\/recipes\n/)]);
 });
 
 test("GitHub lagging just after a push doesn't make a conflict copy", async ({ page }) => {
@@ -120,7 +120,7 @@ test("a relaunch straight after a push, while GitHub lags, makes no conflict cop
   await expect(synced(page)).toBeVisible();
   // iOS relaunching the app, which forgets everything not in storage.
   await page.reload();
-  await button(page, /^Free text/).click();
+  await button(page, /^Notes/).click();
   await button(page, /^Recipes/).click();
   await button(page, "Roast potatoes").click();
   await editor(page).click();
@@ -149,7 +149,7 @@ test("notes still arrive one at a time when batches are refused", async ({ page 
 });
 
 async function openRecipe(page: Page, title: string) {
-  await button(page, /^Free text/).click();
+  await button(page, /^Notes/).click();
   await button(page, /^Recipes/).click();
   await button(page, title).click();
 }
@@ -353,12 +353,12 @@ test("moving a note saves the last keystrokes, follows the new path, and survive
   await page.keyboard.press("ControlOrMeta+End");
   await page.keyboard.type(" Finished.");
   await button(page, "Move note").click();
-  await page.getByLabel("Destination folder").selectOption("workshop");
+  await page.getByLabel("Destination folder").selectOption("Workshop");
   await button(page, "Move").click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(editor(page)).toContainText("Finished.");
   expect(github.read(TOMATO)).toBeUndefined();
-  expect(github.read("workshop/tomato-soup.md")).toContain("Finished.");
+  expect(github.read("Workshop/tomato-soup.md")).toContain("Finished.");
   expect(github.messages.filter((message) => message.startsWith("phone: move"))).toHaveLength(1);
   await editor(page).click();
   await page.keyboard.press("ControlOrMeta+End");
@@ -366,7 +366,7 @@ test("moving a note saves the last keystrokes, follows the new path, and survive
   await button(page, "Back").click();
   await expect(button(page, "Tomato soup")).toBeVisible();
   await expect(synced(page)).toBeVisible();
-  expect(github.read("workshop/tomato-soup.md")).toContain("Finished. More.");
+  expect(github.read("Workshop/tomato-soup.md")).toContain("Finished. More.");
   await page.reload();
   await expect(synced(page)).toBeVisible();
   await button(page, /^Workshop/).click();
@@ -376,22 +376,22 @@ test("moving a note saves the last keystrokes, follows the new path, and survive
 });
 
 test("a move collision shows an error and preserves both notes", async ({ page }) => {
-  github.write("workshop/tomato-soup.md", "# Existing soup\n");
+  github.write("Workshop/tomato-soup.md", "# Existing soup\n");
   await connect(page);
   await openRecipe(page, "Tomato soup");
   await button(page, "Move note").click();
-  await page.getByLabel("Destination folder").selectOption("workshop");
+  await page.getByLabel("Destination folder").selectOption("Workshop");
   await button(page, "Move").click();
   await expect(page.getByRole("dialog").getByRole("alert")).toContainText("already exists");
   expect(github.read(TOMATO)).toContain("Simmer.");
-  expect(github.read("workshop/tomato-soup.md")).toBe("# Existing soup\n");
+  expect(github.read("Workshop/tomato-soup.md")).toBe("# Existing soup\n");
   await button(page, "Cancel").click();
   await expect(editor(page)).toContainText("Simmer.");
 });
 
 test("Home clears search and folder navigation, while Back keeps search results", async ({ page }) => {
   await connect(page);
-  await button(page, /^Free text/).click();
+  await button(page, /^Notes/).click();
   await button(page, /^Recipes/).click();
   await page.getByLabel("Search notes").fill("potatoes");
   await button(page, /^Roast potatoes/).click();
@@ -399,12 +399,12 @@ test("Home clears search and folder navigation, while Back keeps search results"
   await expect(page.getByLabel("Search notes")).toHaveValue("potatoes");
   await button(page, "Home").click();
   await expect(page.getByLabel("Search notes")).toHaveValue("");
-  await expect(button(page, /^Free text/)).toBeVisible();
+  await expect(button(page, /^Notes/)).toBeVisible();
   await expect(button(page, /^Workshop/)).toBeVisible();
   await expect(button(page, "Up a folder")).toHaveCount(0);
   await button(page, "Settings").click();
   await button(page, "Home").click();
-  await expect(button(page, /^Free text/)).toBeVisible();
+  await expect(button(page, /^Notes/)).toBeVisible();
 });
 
 test("Home saves the last keystrokes and leaves a search result for the library root", async ({ page }) => {
@@ -416,7 +416,7 @@ test("Home saves the last keystrokes and leaves a search result for the library 
   await page.keyboard.type(" Saved by Home.");
   await button(page, "Home").click();
   await expect(page.getByLabel("Search notes")).toHaveValue("");
-  await expect(button(page, /^Free text/)).toBeVisible();
+  await expect(button(page, /^Notes/)).toBeVisible();
   await expect(synced(page)).toBeVisible();
   expect(github.read(POTATO)).toContain("Saved by Home.");
 });
@@ -438,23 +438,23 @@ test("Home keeps the editor open if the writing couldn't be saved", async ({ pag
 });
 
 test("Move is visible and can move a note into a nested completed folder", async ({ page }) => {
-  github.write("workshop/completed/blog-posts/another.md", "# Another post\n");
+  github.write("Workshop/completed/blog-posts/another.md", "# Another post\n");
   await connect(page);
   await openRecipe(page, "Tomato soup");
   await expect(button(page, "Move note")).toContainText("Move");
   await button(page, "Move note").click();
-  await page.getByLabel("Destination folder").selectOption("workshop/completed/blog-posts");
+  await page.getByLabel("Destination folder").selectOption("Workshop/completed/blog-posts");
   await button(page, "Move").click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(page.locator(".note-folder")).toHaveText("Workshop / Completed / Blog posts");
-  expect(github.read("workshop/completed/blog-posts/tomato-soup.md")).toContain("Simmer.");
+  expect(github.read("Workshop/completed/blog-posts/tomato-soup.md")).toContain("Simmer.");
   expect(github.read(TOMATO)).toBeUndefined();
   await button(page, "Home").click();
   await expect(button(page, /^Workshop/)).toBeVisible();
 });
 
 test("the redesigned shelves fit a small phone and Home stays visible", async ({ page }, testInfo) => {
-  github.write("knowledge/ideas.md", "# Ideas\n");
+  github.write("Knowledge/ideas.md", "# Ideas\n");
   github.write("Diary/daily/2026/11/2026-11-11.md", "# 11/11\n");
   await page.setViewportSize({ width: 320, height: 568 });
   await connect(page);
